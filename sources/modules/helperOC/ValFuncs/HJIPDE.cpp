@@ -418,7 +418,7 @@ bool HJIPDE_impl::solve(beacls::FloatVec& dst_tau,
 	}
 #endif  /* defined(VISUALIZE_BY_OPENCV) */
 
-	// Extract cdynamical system if needed
+	// Extract dynamical system if needed
 
 	bool stopConverge = extraArgs.stopConverge;
 	FLOAT_TYPE convergeThreshold = extraArgs.convergeThreshold;
