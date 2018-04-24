@@ -208,8 +208,10 @@ bool helperOC::ComputeOptTraj_impl::operator()(
 					cv::Scalar{ 0,0,0 }, thickness, cv::LINE_AA);
 
 #if defined(VISUALIZE_WITH_GUI)
-				cv::imshow("BRS1", BRSplot);
-				cv::waitKey(1);
+				if (visualize) {
+					cv::imshow(windowName.c_str(), BRSplot);
+					cv::waitKey(1);
+				}
 #endif
 				if (!extraArgs.fig_filename.empty()) {
 					std::stringstream i_ss;
