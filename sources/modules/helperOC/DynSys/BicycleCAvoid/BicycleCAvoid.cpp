@@ -36,8 +36,8 @@
 
 ///////////////////////////////////////////////////////////////////////////////
 //
-// DynSys subclass: relative dynamics between 5D dynamic Dubins car (tracker)
-// and 3D Dubins car (planner).
+// DynSys subclass: relative dynamics between a bicycle model car and a
+//                  dynamically extended (+acceleration) simple car
 //
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -53,27 +53,16 @@ using namespace helperOC;
 
 BicycleCAvoid::BicycleCAvoid(
     const beacls::FloatVec& x,      // state of tracker (relative to planner)
-    const beacls::FloatVec& aRange, // tracker's linear acceleration bounds
-    const FLOAT_TYPE alphaMax,      // tracker's maximum angular acceleration
-    const FLOAT_TYPE vOther,        // planner's speed
-    const FLOAT_TYPE wMax,          // planner's maximum angular velocity
-    const beacls::FloatVec& dMax,   // maximum disturbance on tracker's dynamics
     const beacls::IntegerVec& dims
-) : DynSys(5, // states: [x_rel, y_rel, theta_rel, v, w]
-           2, // controls: [a, alpha] (linear and angular acceleration)
-           6  // disturbances: all state components + planner w input
-        // beacls::IntegerVec{0, 1},  //!< Position dimensions
-        // beacls::IntegerVec{2},  //!< Heading dimensions
-    ),
-    aRange(aRange), alphaMax(alphaMax), vOther(vOther),
-    wMax(wMax), dMax(dMax), dims(dims) {
-    std::cout << "Constructed BicycleCAvoid object with:" << std::endl;
-    std::cout << "  " << "N_states: " << x.size() << std::endl;
-    std::cout << "  " << "N_disturbances: " << dMax.size() << std::endl;
+) : DynSys(
+      7, // states: [x_rel, y_rel, psi_rel, Ux, Uy, V, r]
+      3, // controls: [d, Fxf, Fxr]
+      2  // disturbances: dynamically extended simple car [w, a]
+    ), dims(dims) {
+    std::cout << "Constructed BicycleCAvoid object." << std::endl;
     //!< Process control range
     if (x.size() != DynSys::get_nx()) {
-      std::cerr << "Error: " << __func__ <<
-        " : Initial state does not have right dimension!" << std::endl;
+      std::cerr << "Error: " << __func__ << " : Initial state does not have right dimension!" << std::endl;
     }
     //!< Process initial state
     DynSys::set_x(x);
@@ -85,41 +74,19 @@ BicycleCAvoid::BicycleCAvoid(
     beacls::MatVariable* variable_ptr
 ) :
     DynSys(fs, variable_ptr),
-    aRange(beacls::FloatVec()),
-    alphaMax(0),
-    vOther(0),
-    wMax(0),
-    dMax(beacls::FloatVec()),
     dims(beacls::IntegerVec()) {
     beacls::IntegerVec dummy;
-    load_vector(aRange, std::string("aRange"), dummy, true, fs, variable_ptr);  
-    load_value(alphaMax, std::string("alphaMax"), true, fs, variable_ptr);  
-    load_value(vOther, std::string("vOther"), true, fs, variable_ptr);  
-    load_value(wMax, std::string("wMax"), true, fs, variable_ptr);  
-    load_vector(dMax, std::string("dMax"), dummy, true, fs, variable_ptr);  
     load_vector(dims, std::string("dims"), dummy, true, fs, variable_ptr);
 }
 
-
 BicycleCAvoid::~BicycleCAvoid() {}
-
 
 bool BicycleCAvoid::operator==(const BicycleCAvoid& rhs) const {
   if (this == &rhs) return true;
   else if (!DynSys::operator==(rhs)) return false;
-  else if ((aRange.size() != rhs.aRange.size()) ||
-    !std::equal(aRange.cbegin(), aRange.cend(), rhs.aRange.cbegin()))
-      return false;
-  else if (alphaMax != rhs.alphaMax) return false;   
-  else if (vOther != rhs.vOther) return false;    
-  else if (wMax != rhs.wMax) return false;   
-  else if ((dMax.size() != rhs.dMax.size()) || !std::equal(dMax.cbegin(),
-    dMax.cend(), rhs.dMax.cbegin())) return false;
-  else if ((dims.size() != rhs.dims.size()) || !std::equal(dims.cbegin(),
-    dims.cend(), rhs.dims.cbegin())) return false;
+  else if ((dims.size() != rhs.dims.size()) || !std::equal(dims.cbegin(), dims.cend(), rhs.dims.cbegin())) return false;
   return true;
 }
-
 
 bool BicycleCAvoid::operator==(const DynSys& rhs) const {
     if (this == &rhs) return true;
@@ -127,25 +94,14 @@ bool BicycleCAvoid::operator==(const DynSys& rhs) const {
     else return operator==(dynamic_cast<const BicycleCAvoid&>(rhs));
 }
 
-
 bool BicycleCAvoid::save(
     beacls::MatFStream* fs,
     beacls::MatVariable* variable_ptr) {
 
   bool result = DynSys::save(fs, variable_ptr);
-  if (!aRange.empty()) result &= save_vector(aRange, std::string("aRange"), 
-    beacls::IntegerVec(), true, fs, variable_ptr);
-  result &=
-    save_value(alphaMax, std::string("alphaMax"), true, fs, variable_ptr);
-  result &= save_value(vOther, std::string("vOther"), true, fs, variable_ptr);
-  result &= save_value(wMax, std::string("wMax"), true, fs, variable_ptr);
-  if (!dMax.empty()) result &= save_vector(dMax, std::string("dMax"), 
-    beacls::IntegerVec(), true, fs, variable_ptr);
-  if (!dims.empty()) result &= save_vector(dims, std::string("dims"), 
-    beacls::IntegerVec(), true, fs, variable_ptr);
+  if (!dims.empty()) result &= save_vector(dims, std::string("dims"), beacls::IntegerVec(), true, fs, variable_ptr);
   return result;
 }
-
 
 bool BicycleCAvoid::optCtrl_i_cell_helper(
     beacls::FloatVec& uOpt_i, // Relevant component i of the optimal input
@@ -347,145 +303,178 @@ bool BicycleCAvoid::optDstb(
   return result;
 }
 
+FLOAT_TYPE fialaTireModel(const FLOAT_TYPE a,
+                          const FLOAT_TYPE Ca,
+                          const FLOAT_TYPE mu,
+                          const FLOAT_TYPE Fx,
+                          const FLOAT_TYPE Fz) {
+  FLOAT_TYPE Fmax = mu * Fz;
+  if (std::abs(Fx) >= Fmax)
+    return 0;
+  else {
+    FLOAT_TYPE Fymax = std::sqrt(Fmax * Fmax - Fx * Fx);
+    FLOAT_TYPE tana = std::tan(a);
+    FLOAT_TYPE tana_slide = 3 * Fymax / Ca;
+    FLOAT_TYPE ratio = std::abs(tana / tana_slide);
+    if (ratio < 1)
+      return -Ca * tana * (1 - ratio + ratio * ratio / 3);
+    else
+      return -std::copysign(Fymax, tana);
+  }
+}
+
 bool BicycleCAvoid::dynamics_cell_helper(
     std::vector<beacls::FloatVec>& dxs,
-    const beacls::FloatVec::const_iterator& state_x_rel,
-    const beacls::FloatVec::const_iterator& state_y_rel,
-    const beacls::FloatVec::const_iterator& state_theta_rel,
-    const beacls::FloatVec::const_iterator& state_v,
-    const beacls::FloatVec::const_iterator& state_w,
-    const std::vector<beacls::FloatVec>& us,
-    const std::vector<beacls::FloatVec>& ds,
+    const beacls::FloatVec::const_iterator& x_rel,
+    const beacls::FloatVec::const_iterator& y_rel,
+    const beacls::FloatVec::const_iterator& psi_rel,
+    const beacls::FloatVec::const_iterator& Ux,
+    const beacls::FloatVec::const_iterator& Uy,
+    const beacls::FloatVec::const_iterator& V,
+    const beacls::FloatVec::const_iterator& r,
+    const std::vector<beacls::FloatVec >& us,
+    const std::vector<beacls::FloatVec >& ds,
     const size_t size_x_rel,
     const size_t size_y_rel,
-    const size_t size_theta_rel,
-    const size_t size_v,
-    const size_t size_w,
+    const size_t size_psi_rel,
+    const size_t size_Ux,
+    const size_t size_Uy,
+    const size_t size_V,
+    const size_t size_r,
     const size_t dim) const {
 
   beacls::FloatVec& dx_i = dxs[dim];
   bool result = true;
 
   switch (dims[dim]) {
-    case 0: { // x_rel_dot = -vOther + v * cos(theta_rel) + wOther*y_rel + d_x_rel
+    case 0: { // x_rel_dot = V * cos(psi_rel) - Ux + y_rel * r
       dx_i.resize(size_x_rel);
-      const beacls::FloatVec& d_x_rels = ds[0];
-      const beacls::FloatVec& wOthers = ds[5];
-      FLOAT_TYPE d_x_rel;
-      FLOAT_TYPE wOther;
 
-      for (size_t index = 0; index < size_x_rel; ++index) {
-        if (ds[0].size() == size_x_rel) {
-          d_x_rel = d_x_rels[index];
-          wOther = wOthers[index];
-        }
-        else {
-          d_x_rel = d_x_rels[0];
-          wOther = wOthers[0];
-        }
-
-        dx_i[index] = -vOther +
-          state_v[index] * std::cos(state_theta_rel[index]) +
-          wOther * state_y_rel[index] +
-          d_x_rel;
+      for (size_t i = 0; i < size_x_rel; ++i) {
+        dx_i[i] = V[i] * std::cos(psi_rel[i]) - Ux[i] + y_rel[i] * r[i];
       }
     } break;
 
-    case 1: { // y_rel_dot = v * sin(theta_rel) - wOther*x_rel + d_y_rel
+    case 1: { // y_rel_dot = V * sin(psi_rel) - Uy - x_rel * r
       dx_i.resize(size_y_rel);
-      const beacls::FloatVec& d_y_rels = ds[1];
-      const beacls::FloatVec& wOthers = ds[5];
-      FLOAT_TYPE d_y_rel;
-      FLOAT_TYPE wOther;
 
-      for (size_t index = 0; index < size_y_rel; ++index) {
-        if (ds[1].size() == size_y_rel)
-          d_y_rel = d_y_rels[index];
-        else 
-          d_y_rel = d_y_rels[0];
-
-        if (ds[5].size() == size_y_rel)
-          wOther = wOthers[index];
-        else
-          wOther = wOthers[0];
-
-        dx_i[index] =
-          state_v[index] * std::sin(state_theta_rel[index]) -
-          wOther * state_x_rel[index] +
-          d_y_rel;
+      for (size_t i = 0; i < size_y_rel; ++i) {
+        dx_i[i] = V[i] * std::sin(psi_rel[i]) - Uy[i] - x_rel[i] * r[i];
       }
     } break;
 
-    case 2: {   // theta_rel_dot = w - wOther
-      dx_i.resize(size_theta_rel);
-      const beacls::FloatVec& d_theta_rels = ds[2];
-      const beacls::FloatVec& wOthers = ds[5];
-      FLOAT_TYPE d_theta_rel;
-      FLOAT_TYPE wOther;
+    case 2: { // psi_rel_dot = w - r
+      dx_i.resize(size_psi_rel);
+      const beacls::FloatVec& w = ds[0];
+      FLOAT_TYPE wi;
 
-      for (size_t index = 0; index < size_theta_rel; ++index) {
-        if (ds[2].size() == size_theta_rel)
-          d_theta_rel = d_theta_rels[index];
-        else 
-          d_theta_rel = d_theta_rels[0];
-
-        if (ds[5].size() == size_theta_rel)
-          wOther = wOthers[index];
-        else 
-          wOther = wOthers[0];
-
-        dx_i[index] = state_w[index] - wOther + d_theta_rel;
+      for (size_t i = 0; i < size_psi_rel; ++i) {
+        if (w.size() == size_psi_rel)
+          wi = w[i];
+        else
+          wi = w[0];
+        dx_i[i] = wi - r[i];
       }
     } break;
 
-    case 3: {   // v_dot = a + d_v
-      dx_i.resize(size_v);
-      const beacls::FloatVec& d_vs = ds[3];
-      const beacls::FloatVec& as = us[0];
-      FLOAT_TYPE d_v;
-      FLOAT_TYPE a;
+    case 3: {   // Ux_dot = (Fxf + Fxr + Fx_drag) / m + r * Uy
+      dx_i.resize(size_Ux);
+      const beacls::FloatVec& Fxf = us[1];
+      const beacls::FloatVec& Fxr = us[2];
+      FLOAT_TYPE Fxfi, Fxri, Fx_dragi;
 
-      for (size_t index = 0; index < size_v; ++index) {
-        if (ds[3].size() == size_v)
-          d_v = d_vs[index];
+      for (size_t i = 0; i < size_Ux; ++i) {
+        if (Fxf.size() == size_Ux)
+          Fxfi = Fxf[i];
         else
-          d_v = d_vs[0];
-
-        if (us[0].size() == size_v)
-          a = as[index];
+          Fxfi = Fxf[0];
+        if (Fxr.size() == size_Ux)
+          Fxri = Fxr[i];
         else
-          a = as[0];
-
-        dx_i[index] = a + d_v;
+          Fxri = Fxr[0];
+        Fx_dragi = -X1::Cd0 - Ux[i] * (X1::Cd1 + X1::Cd2 * Ux[i]);
+        dx_i[i] = (Fxfi + Fxri + Fx_dragi) / X1::m + r[i] * Uy[i];
       }
     } break;
 
-    case 4: { // w_dot = alpha + d_w
-      dx_i.resize(size_w);
-      const beacls::FloatVec& d_ws = ds[4];
-      const beacls::FloatVec& alphas = us[1];
-      FLOAT_TYPE d_w;
-      FLOAT_TYPE alpha;
+    case 4: { // Uy_dot = (Fyf + Fyr) / m - r * Ux
+      dx_i.resize(size_Uy);
+      const beacls::FloatVec&   d = us[0];
+      const beacls::FloatVec& Fxf = us[1];
+      const beacls::FloatVec& Fxr = us[2];
+      FLOAT_TYPE di, Fxfi, Fxri, afi, ari, Fxi, Fzfi, Fzri, Fyfi, Fyri;
 
-      for (size_t index = 0; index < size_w; ++index) {
-        if (ds[4].size() == size_w)
-          d_w = d_ws[index];
+      for (size_t i = 0; i < size_Uy; ++i) {
+        if (d.size() == size_Uy)
+          di = d[i];
         else
-          d_w = d_ws[0];
-
-        if (us[1].size() == size_w)
-          alpha = alphas[index];
+          di = d[0];
+        if (Fxf.size() == size_Uy)
+          Fxfi = Fxf[i];
         else
-          alpha = alphas[0];
+          Fxfi = Fxf[0];
+        if (Fxr.size() == size_Uy)
+          Fxri = Fxr[i];
+        else
+          Fxri = Fxr[0];
+        afi = std::atan((Uy[i] + X1::a * r[i]) / Ux[i]) - di;
+        ari = std::atan((Uy[i] - X1::b * r[i]) / Ux[i]);
+        Fxi = Fxfi + Fxri;
+        Fzfi = (X1::m * X1::G * X1::b - X1::h * Fxi) / X1::L;
+        Fzri = (X1::m * X1::G * X1::a + X1::h * Fxi) / X1::L;
+        Fyfi = fialaTireModel(afi, X1::Caf, X1::mu, Fxfi, Fzfi);
+        Fyri = fialaTireModel(ari, X1::Car, X1::mu, Fxri, Fzri);
+        dx_i[i] = (Fyfi + Fyri) / X1::m - r[i] * Ux[i];
+      }
+    } break;
 
-        dx_i[index] = alpha + d_w;
+    case 5: { // V_dot = a
+      dx_i.resize(size_V);
+      const beacls::FloatVec& a = ds[1];
+      FLOAT_TYPE ai;
+
+      for (size_t i = 0; i < size_V; ++i) {
+        if (a.size() == size_V)
+          ai = a[i];
+        else
+          ai = a[0];
+        dx_i[i] = ai;
+      }
+    } break;
+
+    case 6: { // r_dot = (a * Fyf - b * Fyr) / Izz
+      dx_i.resize(size_Ur);
+      const beacls::FloatVec&   d = us[0];
+      const beacls::FloatVec& Fxf = us[1];
+      const beacls::FloatVec& Fxr = us[2];
+      FLOAT_TYPE di, Fxfi, Fxri, afi, ari, Fxi, Fzfi, Fzri, Fyfi, Fyri;
+
+      for (size_t i = 0; i < size_Ur; ++i) {
+        if (d.size() == size_Ur)
+          di = d[i];
+        else
+          di = d[0];
+        if (Fxf.size() == size_Ur)
+          Fxfi = Fxf[i];
+        else
+          Fxfi = Fxf[0];
+        if (Fxr.size() == size_Ur)
+          Fxri = Fxr[i];
+        else
+          Fxri = Fxr[0];
+        afi = std::atan((Uy[i] + X1::a * r[i]) / Ux[i]) - di;
+        ari = std::atan((Uy[i] - X1::b * r[i]) / Ux[i]);
+        Fxi = Fxfi + Fxri;
+        Fzfi = (X1::m * X1::G * X1::b - X1::h * Fxi) / X1::L;
+        Fzri = (X1::m * X1::G * X1::a + X1::h * Fxi) / X1::L;
+        Fyfi = fialaTireModel(afi, X1::Caf, X1::mu, Fxfi, Fzfi);
+        Fyri = fialaTireModel(ari, X1::Car, X1::mu, Fxri, Fzri);
+        dx_i[i] = (X1::a * Fyfi - X1::b * Fyri) / X1::Izz;
       }
     } break;
 
     default:
-      std::cerr <<
-        "Only dimension 1-5 are defined for dynamics of BicycleCAvoid!" <<
-        std::endl;
+      std::cerr << "Only dimension 1-7 are defined for dynamics of BicycleCAvoid!" << std::endl;
       result = false;
       break;
   }
@@ -500,21 +489,15 @@ bool BicycleCAvoid::dynamics(
     const std::vector<beacls::FloatVec>& ds,
     const beacls::IntegerVec& x_sizes,
     const size_t dst_target_dim) const {
-    
-    // const beacls::FloatVec::const_iterator& x_ites0 = x_ites[0];
-    // const beacls::FloatVec::const_iterator& x_ites1 = x_ites[1];
-    // const beacls::FloatVec::const_iterator& x_ites2 = x_ites[2];
-    // const beacls::FloatVec::const_iterator& x_ites3 = x_ites[3];
-    // const beacls::FloatVec::const_iterator& x_ites4 = x_ites[4];
 
     bool result = true;
     // Compute dynamics for all components.
     if (dst_target_dim == std::numeric_limits<size_t>::max()) {
-      for (size_t dim = 0; dim < 5; ++dim) {
+      for (size_t dim = 0; dim < 7; ++dim) {
         // printf("Dimension %zu \n", dim);
         result &= dynamics_cell_helper(
-          dx, x_ites[0], x_ites[1], x_ites[2],x_ites[3], x_ites[4], us, ds,
-          x_sizes[0], x_sizes[1], x_sizes[2], x_sizes[3], x_sizes[4], dim);
+          dx, x_ites[0], x_ites[1], x_ites[2], x_ites[3], x_ites[4], x_ites[5], x_ites[6], us, ds,
+          x_sizes[0], x_sizes[1], x_sizes[2], x_sizes[3], x_sizes[4], x_sizes[5], x_sizes[6], dim);
       }
     }
     // Compute dynamics for a single, specified component.
@@ -523,14 +506,12 @@ bool BicycleCAvoid::dynamics(
       if (dst_target_dim < dims.size()) {
         // printf("Target dimension %zu \n", dst_target_dim);
         result &= dynamics_cell_helper(
-          dx, x_ites[0], x_ites[1], x_ites[2], x_ites[3], x_ites[4], us, ds,
-          x_sizes[0], x_sizes[1], x_sizes[2], x_sizes[3], x_sizes[4], 
-          dst_target_dim);
+          dx, x_ites[0], x_ites[1], x_ites[2], x_ites[3], x_ites[4], x_ites[5], x_ites[6], us, ds,
+          x_sizes[0], x_sizes[1], x_sizes[2], x_sizes[3], x_sizes[4], x_sizes[5], x_sizes[6], dst_target_dim);
       }
 
       else {
-        std::cerr << "Invalid target dimension for dynamics: " <<
-            dst_target_dim << std::endl;
+        std::cerr << "Invalid target dimension for dynamics: " << dst_target_dim << std::endl;
         result = false;
       }
     }

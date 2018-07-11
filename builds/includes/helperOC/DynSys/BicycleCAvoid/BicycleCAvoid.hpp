@@ -36,7 +36,8 @@
 
 ///////////////////////////////////////////////////////////////////////////////
 //
-// DynSys subclass: relative dynamics between a bicycle model car and
+// DynSys subclass: relative dynamics between a bicycle model car and a
+//                  dynamically extended (+acceleration) simple car
 //
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -52,6 +53,7 @@
 #define PREFIX_VC_DLL
 #endif
 
+#include <helperOC/DynSys/BicycleCAvoid/X1Params.hpp>
 #include <helperOC/DynSys/DynSys/DynSys.hpp>
 #include <typedef.hpp>
 #include <cstddef>
@@ -61,32 +63,12 @@
 #include <utility>
 using namespace std::rel_ops;
 namespace helperOC {
-    /*
-        @note: Since plane is a "handle class", we can pass on
-        handles/pointers to other plane objects
-        e.g. a.platoon.leader = b (passes b by reference, does not create a copy)
-        Also see constructor
-    */
     class BicycleCAvoid : public DynSys {
     public:
     protected:
-        // Control bounds of this vehicle
-        beacls::FloatVec aRange;          // Linear acceleration  TODO
-        FLOAT_TYPE alphaMax;              // Angular acceleration TODO
-
-        // Vehicle speeds
-        FLOAT_TYPE vOther;
-
-        // Control bounds of other vehicle (at origin)
-        FLOAT_TYPE wMax;     // Turn rate
-
-        // Disturbance bounds
-        beacls::FloatVec dMax;     // 5D
-
-
         beacls::IntegerVec dims;    //!< Dimensions that are active
     public:
-        /*
+        /* TODO: change
         @brief Constructor. Creates a Dubins Car object with a unique ID,
             state x, and reachable set information reachInfo
         Dynamics:
@@ -106,13 +88,7 @@ namespace helperOC {
         PREFIX_VC_DLL
             BicycleCAvoid(
                 const beacls::FloatVec& x,
-                const beacls::FloatVec& aRange = beacls::FloatVec{-0.15, 0.15 },
-                const FLOAT_TYPE alphaMax = 3.0,
-                const FLOAT_TYPE vOther = 0.1,
-                const FLOAT_TYPE wMax = 2.0,
-                const beacls::FloatVec& dMax = beacls::FloatVec{
-                    0.02, 0.02, 0., 0.2, 0.02},
-                const beacls::IntegerVec& dims = beacls::IntegerVec{ 0,1,2,3,4 }
+                const beacls::IntegerVec& dims = beacls::IntegerVec{ 0,1,2,3,4,5,6 }
             );
         PREFIX_VC_DLL
             BicycleCAvoid(
@@ -187,19 +163,23 @@ namespace helperOC {
         @brief Helper function for dynamics
         */
         bool dynamics_cell_helper(
-            std::vector<beacls::FloatVec >& dxs,
-            const beacls::FloatVec::const_iterator& state_x_rel,
-            const beacls::FloatVec::const_iterator& state_y_rel,
-            const beacls::FloatVec::const_iterator& state_theta_rel,
-            const beacls::FloatVec::const_iterator& state_v,
-            const beacls::FloatVec::const_iterator& state_w,
+            std::vector<beacls::FloatVec>& dxs,
+            const beacls::FloatVec::const_iterator& x_rel,
+            const beacls::FloatVec::const_iterator& y_rel,
+            const beacls::FloatVec::const_iterator& psi_rel,
+            const beacls::FloatVec::const_iterator& Ux,
+            const beacls::FloatVec::const_iterator& Uy,
+            const beacls::FloatVec::const_iterator& V,
+            const beacls::FloatVec::const_iterator& r,
             const std::vector<beacls::FloatVec >& us,
             const std::vector<beacls::FloatVec >& ds,
             const size_t size_x_rel,
             const size_t size_y_rel,
-            const size_t size_theta_rel,
-            const size_t size_v,
-            const size_t size_w,
+            const size_t size_psi_rel,
+            const size_t size_Ux,
+            const size_t size_Uy,
+            const size_t size_V,
+            const size_t size_r,
             const size_t dim
         ) const;
         /*
@@ -268,13 +248,14 @@ namespace helperOC {
         */
         BicycleCAvoid(const BicycleCAvoid& rhs) :
             DynSys(rhs),
-            aRange(rhs.aRange),
-            alphaMax(rhs.alphaMax),
-            vOther(rhs.vOther),
-            wMax(rhs.wMax),
-            dMax(rhs.dMax),
             dims(rhs.dims)  //!< Dimensions that are active
         {}
+
+        FLOAT_TYPE fialaTireModel(const FLOAT_TYPE a,
+                                  const FLOAT_TYPE Ca,
+                                  const FLOAT_TYPE mu,
+                                  const FLOAT_TYPE Fx,
+                                  const FLOAT_TYPE Fz);
     };
 };
 #endif  /* __BicycleCAvoid_hpp__ */
