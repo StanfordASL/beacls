@@ -56,7 +56,7 @@ BicycleCAvoid::BicycleCAvoid(
     const beacls::IntegerVec& dims
 ) : DynSys(
       7, // states: [x_rel, y_rel, psi_rel, Ux, Uy, V, r]
-      3, // controls: [d, Fxf, Fxr]
+      2, // controls: [d, Fx]
       2  // disturbances: dynamically extended simple car [w, a]
     ), dims(dims) {
     std::cout << "Constructed BicycleCAvoid object." << std::endl;
@@ -228,79 +228,67 @@ bool BicycleCAvoid::optDstb(
     const std::vector<const FLOAT_TYPE*>& deriv_ptrs,
     const beacls::IntegerVec&,
     const beacls::IntegerVec& deriv_sizes,
-    const helperOC::DynSys_DMode_Type dMode
-    ) const {
+    const helperOC::DynSys_DMode_Type dMode) const {
+
   const helperOC::DynSys_DMode_Type modified_dMode =
     (dMode == helperOC::DynSys_DMode_Default) ?
     helperOC::DynSys_DMode_Min : dMode;
 
-  if ((modified_dMode != helperOC::DynSys_DMode_Max) && 
+  if ((modified_dMode != helperOC::DynSys_DMode_Max) &&
       (modified_dMode != helperOC::DynSys_DMode_Min)) {
     std::cerr << "Unknown dMode!: " << modified_dMode << std::endl;
     return false;
   }
 
   // Why is this needed? It is found in Plane.cpp
-  for (size_t dim = 0; dim < 5; ++dim) {
+  for (size_t dim = 0; dim < 7; ++dim) {
     if (deriv_sizes[dim] == 0 || deriv_ptrs[dim] == NULL) {
       return false;
     }
   }
 
   dOpts.resize(get_nd());
-  bool result = true;
+  dOpts[0].resize(deriv_sizes[0]);
+  dOpts[1].resize(deriv_sizes[0]);
 
-  // Call helper to determine optimal value for each disturbance component
-  // (we feed the relevant state component affected by each input as well as
-  //  the input values that maximize and minimize this state's derivative).
-
-  // Disturbances
-  const beacls::FloatVec& dRange0{-dMax[0],dMax[0]};
-  const beacls::FloatVec& dRange1{-dMax[1],dMax[1]};
-  const beacls::FloatVec& dRange2{-dMax[2],dMax[2]};
-  const beacls::FloatVec& dRange3{-dMax[3],dMax[3]};
-  const beacls::FloatVec& dRange4{-dMax[4],dMax[4]};
-  
-  result &= optDstb_i_cell_helper(dOpts[0], deriv_ptrs, deriv_sizes,
-      modified_dMode, 0, dRange0);
-  result &= optDstb_i_cell_helper(dOpts[1], deriv_ptrs, deriv_sizes,
-      modified_dMode, 1, dRange1);
-  result &= optDstb_i_cell_helper(dOpts[2], deriv_ptrs, deriv_sizes,
-      modified_dMode, 2, dRange2);
-  result &= optDstb_i_cell_helper(dOpts[3], deriv_ptrs, deriv_sizes,
-      modified_dMode, 3, dRange3);
-  result &= optDstb_i_cell_helper(dOpts[4], deriv_ptrs, deriv_sizes,
-      modified_dMode, 4, dRange4);
-
-  // Planning control
-  // assume state is a matrix (not a single state)
-
-  dOpts[5].resize(deriv_sizes[0]);
-
-  beacls::FloatVec::const_iterator xs0 = x_ites[0];
-  beacls::FloatVec::const_iterator xs1 = x_ites[1];
-
-  const FLOAT_TYPE* deriv0_ptr = deriv_ptrs[0];
-  const FLOAT_TYPE* deriv1_ptr = deriv_ptrs[1];
-  const FLOAT_TYPE* deriv2_ptr = deriv_ptrs[2];
-
-  const FLOAT_TYPE w_if_det5_pos = 
-    (modified_dMode == helperOC::DynSys_DMode_Max) ? wMax : -wMax;
-  const FLOAT_TYPE w_if_det5_neg =
-    (modified_dMode == helperOC::DynSys_DMode_Max) ? -wMax : wMax;
-
-  for (size_t index = 0; index < deriv_sizes[0]; ++index) {
-    const FLOAT_TYPE x0 = xs0[index];
-    const FLOAT_TYPE x1 = xs1[index];
-    const FLOAT_TYPE deriv0 = deriv0_ptr[index];
-    const FLOAT_TYPE deriv1 = deriv1_ptr[index];
-    const FLOAT_TYPE deriv2 = deriv2_ptr[index];
-
-    const FLOAT_TYPE det5 = deriv0*x1 - deriv1*x0 - deriv2;
-
-    dOpts[5][index] = (det5 >= 0) ? w_if_det5_pos : w_if_det5_neg;
+  beacls::FloatVec::const_iterator v = x_ites[5];
+  FLOAT_TYPE vi, lam_wi, lam_Axi, lam_Ayi, lam_norm, desAx, desAy, maxAxi, maxAyi;
+  FLOAT_TYPE maxA = X1::maxA_approx;
+  FLOAT_TYPE sign = (modified_dMode == helperOC::DynSys_DMode_Max) ? 1 : -1;
+  for (size_t i = 0; i < deriv_sizes[0]; ++i) {
+    vi = v[i];
+    lam_wi  = deriv_ptrs[2][i];
+    lam_Axi = deriv_ptrs[5][i];
+    lam_Ayi = lam_wi / vi;
+    lam_norm = std::hypot(lam_Axi, lam_Ayi);
+    desAxi = sign * lam_Axi * maxA / lam_norm;
+    desAyi = sign * lam_Ayi * maxA / lam_norm;
+    maxAxi = std::min(X1::maxAx, X1::maxP2mx / vi);  // max longitudinal acceleration
+    maxAyi = X1::w_per_v_max_lowspeed * vi * vi;     // also bounded by maxA
+    if (desAxi > maxAxi) {
+      if (std::abs(desAyi) < maxAyi) {
+        maxAyi = std::min(std::sqrt(maxA * maxA - maxAxi * maxAxi), maxAyi);
+      }
+      dOpts[0][i] = std::copysign(maxAyi, desAyi) / vi;
+      dOpts[1][i] = maxAxi;
+    } else {
+      if (std::abs(desAyi) > maxAyi) {
+        if (desAxi > 0) {
+          maxAxi = std::min(std::sqrt(maxA * maxA - maxAyi * maxAyi), maxAxi);
+          dOpts[0][i] = std::copysign(maxAyi, desAyi) / vi;
+          dOpts[1][i] = maxAxi;
+        } else {
+          dOpts[0][i] = std::copysign(maxAyi, desAyi) / vi;
+          dOpts[1][i] = -std::sqrt(maxA * maxA - maxAyi * maxAyi);
+        }
+      } else {
+        dOpts[0][i] = desAyi / vi;
+        dOpts[1][i] = maxAxi;
+      }
+    }
   }
-  return result;
+
+  return true;
 }
 
 FLOAT_TYPE fialaTireModel(const FLOAT_TYPE a,
@@ -379,19 +367,16 @@ bool BicycleCAvoid::dynamics_cell_helper(
 
     case 3: {   // Ux_dot = (Fxf + Fxr + Fx_drag) / m + r * Uy
       dx_i.resize(size_Ux);
-      const beacls::FloatVec& Fxf = us[1];
-      const beacls::FloatVec& Fxr = us[2];
-      FLOAT_TYPE Fxfi, Fxri, Fx_dragi;
+      const beacls::FloatVec& Fx = us[1];
+      FLOAT_TYPE Fxi, Fxfi, Fxri, Fx_dragi;
 
       for (size_t i = 0; i < size_Ux; ++i) {
-        if (Fxf.size() == size_Ux)
-          Fxfi = Fxf[i];
+        if (Fx.size() == size_Ux)
+          Fxi = Fx[i];
         else
-          Fxfi = Fxf[0];
-        if (Fxr.size() == size_Ux)
-          Fxri = Fxr[i];
-        else
-          Fxri = Fxr[0];
+          Fxi = Fx[0];
+        Fxfi = getFxf(Fxi);
+        Fxri = getFxr(Fxi);
         Fx_dragi = -X1::Cd0 - Ux[i] * (X1::Cd1 + X1::Cd2 * Ux[i]);
         dx_i[i] = (Fxfi + Fxri + Fx_dragi) / X1::m + r[i] * Uy[i];
       }
@@ -399,24 +384,21 @@ bool BicycleCAvoid::dynamics_cell_helper(
 
     case 4: { // Uy_dot = (Fyf + Fyr) / m - r * Ux
       dx_i.resize(size_Uy);
-      const beacls::FloatVec&   d = us[0];
-      const beacls::FloatVec& Fxf = us[1];
-      const beacls::FloatVec& Fxr = us[2];
-      FLOAT_TYPE di, Fxfi, Fxri, afi, ari, Fxi, Fzfi, Fzri, Fyfi, Fyri;
+      const beacls::FloatVec&  d = us[0];
+      const beacls::FloatVec& Fx = us[1];
+      FLOAT_TYPE di, Fxi, Fxfi, Fxri, afi, ari, Fxi, Fzfi, Fzri, Fyfi, Fyri;
 
       for (size_t i = 0; i < size_Uy; ++i) {
         if (d.size() == size_Uy)
           di = d[i];
         else
           di = d[0];
-        if (Fxf.size() == size_Uy)
-          Fxfi = Fxf[i];
+        if (Fx.size() == size_Uy)
+          Fxi = Fx[i];
         else
-          Fxfi = Fxf[0];
-        if (Fxr.size() == size_Uy)
-          Fxri = Fxr[i];
-        else
-          Fxri = Fxr[0];
+          Fxi = Fx[0];
+        Fxfi = getFxf(Fxi);
+        Fxri = getFxr(Fxi);
         afi = std::atan((Uy[i] + X1::a * r[i]) / Ux[i]) - di;
         ari = std::atan((Uy[i] - X1::b * r[i]) / Ux[i]);
         Fxi = Fxfi + Fxri;
@@ -444,24 +426,21 @@ bool BicycleCAvoid::dynamics_cell_helper(
 
     case 6: { // r_dot = (a * Fyf - b * Fyr) / Izz
       dx_i.resize(size_Ur);
-      const beacls::FloatVec&   d = us[0];
-      const beacls::FloatVec& Fxf = us[1];
-      const beacls::FloatVec& Fxr = us[2];
-      FLOAT_TYPE di, Fxfi, Fxri, afi, ari, Fxi, Fzfi, Fzri, Fyfi, Fyri;
+      const beacls::FloatVec&  d = us[0];
+      const beacls::FloatVec& Fx = us[1];
+      FLOAT_TYPE di, Fxi, Fxfi, Fxri, afi, ari, Fxi, Fzfi, Fzri, Fyfi, Fyri;
 
       for (size_t i = 0; i < size_Ur; ++i) {
         if (d.size() == size_Ur)
           di = d[i];
         else
           di = d[0];
-        if (Fxf.size() == size_Ur)
-          Fxfi = Fxf[i];
+        if (Fx.size() == size_Ur)
+          Fxi = Fx[i];
         else
-          Fxfi = Fxf[0];
-        if (Fxr.size() == size_Ur)
-          Fxri = Fxr[i];
-        else
-          Fxri = Fxr[0];
+          Fxi = Fx[0];
+        Fxfi = getFxf(Fxi);
+        Fxri = getFxr(Fxi);
         afi = std::atan((Uy[i] + X1::a * r[i]) / Ux[i]) - di;
         ari = std::atan((Uy[i] - X1::b * r[i]) / Ux[i]);
         Fxi = Fxfi + Fxri;
@@ -490,30 +469,30 @@ bool BicycleCAvoid::dynamics(
     const beacls::IntegerVec& x_sizes,
     const size_t dst_target_dim) const {
 
-    bool result = true;
-    // Compute dynamics for all components.
-    if (dst_target_dim == std::numeric_limits<size_t>::max()) {
-      for (size_t dim = 0; dim < 7; ++dim) {
-        // printf("Dimension %zu \n", dim);
-        result &= dynamics_cell_helper(
-          dx, x_ites[0], x_ites[1], x_ites[2], x_ites[3], x_ites[4], x_ites[5], x_ites[6], us, ds,
-          x_sizes[0], x_sizes[1], x_sizes[2], x_sizes[3], x_sizes[4], x_sizes[5], x_sizes[6], dim);
-      }
+  bool result = true;
+  // Compute dynamics for all components.
+  if (dst_target_dim == std::numeric_limits<size_t>::max()) {
+    for (size_t dim = 0; dim < 7; ++dim) {
+      // printf("Dimension %zu \n", dim);
+      result &= dynamics_cell_helper(
+        dx, x_ites[0], x_ites[1], x_ites[2], x_ites[3], x_ites[4], x_ites[5], x_ites[6], us, ds,
+        x_sizes[0], x_sizes[1], x_sizes[2], x_sizes[3], x_sizes[4], x_sizes[5], x_sizes[6], dim);
     }
-    // Compute dynamics for a single, specified component.
-    else
-    {
-      if (dst_target_dim < dims.size()) {
-        // printf("Target dimension %zu \n", dst_target_dim);
-        result &= dynamics_cell_helper(
-          dx, x_ites[0], x_ites[1], x_ites[2], x_ites[3], x_ites[4], x_ites[5], x_ites[6], us, ds,
-          x_sizes[0], x_sizes[1], x_sizes[2], x_sizes[3], x_sizes[4], x_sizes[5], x_sizes[6], dst_target_dim);
-      }
+  }
+  // Compute dynamics for a single, specified component.
+  else
+  {
+    if (dst_target_dim < dims.size()) {
+      // printf("Target dimension %zu \n", dst_target_dim);
+      result &= dynamics_cell_helper(
+        dx, x_ites[0], x_ites[1], x_ites[2], x_ites[3], x_ites[4], x_ites[5], x_ites[6], us, ds,
+        x_sizes[0], x_sizes[1], x_sizes[2], x_sizes[3], x_sizes[4], x_sizes[5], x_sizes[6], dst_target_dim);
+    }
 
-      else {
-        std::cerr << "Invalid target dimension for dynamics: " << dst_target_dim << std::endl;
-        result = false;
-      }
+    else {
+      std::cerr << "Invalid target dimension for dynamics: " << dst_target_dim << std::endl;
+      result = false;
     }
-    return result;
+  }
+  return result;
 }
