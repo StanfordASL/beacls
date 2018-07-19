@@ -140,9 +140,9 @@ namespace helperOC {
             bool optCtrl(
                 std::vector<beacls::FloatVec >& uOpts,
                 const FLOAT_TYPE t,
-                const std::vector<beacls::FloatVec::const_iterator >& y_ites,
+                const std::vector<beacls::FloatVec::const_iterator >& x_ites,
                 const std::vector<const FLOAT_TYPE*>& deriv_ptrs,
-                const beacls::IntegerVec& y_sizes,
+                const beacls::IntegerVec& x_sizes,
                 const beacls::IntegerVec& deriv_sizes,
                 const helperOC::DynSys_UMode_Type uMode
             ) const;
@@ -151,11 +151,11 @@ namespace helperOC {
         */
         PREFIX_VC_DLL
             bool optDstb(
-                std::vector<beacls::FloatVec >& uOpts,
+                std::vector<beacls::FloatVec >& dOpts,
                 const FLOAT_TYPE t,
-                const std::vector<beacls::FloatVec::const_iterator >& y_ites,
+                const std::vector<beacls::FloatVec::const_iterator >& x_ites,
                 const std::vector<const FLOAT_TYPE*>& deriv_ptrs,
-                const beacls::IntegerVec& y_sizes,
+                const beacls::IntegerVec& x_sizes,
                 const beacls::IntegerVec& deriv_sizes,
                 const helperOC::DynSys_DMode_Type dMode
             ) const;
@@ -256,6 +256,13 @@ namespace helperOC {
                                   const FLOAT_TYPE mu,
                                   const FLOAT_TYPE Fx,
                                   const FLOAT_TYPE Fz);
+
+        FLOAT_TYPE getFxf(const FLOAT_TYPE Fx) {
+            return (Fx > 0) ? Fx*X1::fwd_frac : Fx*X1::fwb_frac;
+        }
+        FLOAT_TYPE getFxr(const FLOAT_TYPE Fx) {
+            return (Fx > 0) ? Fx*X1::rwd_frac : Fx*X1::rwb_frac;
+        }
     };
 };
 #endif  /* __BicycleCAvoid_hpp__ */
