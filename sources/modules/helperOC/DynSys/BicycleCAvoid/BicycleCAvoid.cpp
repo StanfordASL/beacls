@@ -188,36 +188,62 @@ bool BicycleCAvoid::optDstb_i_cell_helper(
 bool BicycleCAvoid::optCtrl(
     std::vector<beacls::FloatVec>& uOpts,
     const FLOAT_TYPE,
-    const std::vector<beacls::FloatVec::const_iterator>&,
-    const std::vector<const FLOAT_TYPE*>& deriv_ptrs,
-    const beacls::IntegerVec&,
+    const std::vector<beacls::FloatVec::const_iterator>& x_ites, 
+    const std::vector<const FLOAT_TYPE*>& deriv_ptrs,  
+    const beacls::IntegerVec&, // xsizes
     const beacls::IntegerVec& deriv_sizes,
     const helperOC::DynSys_UMode_Type uMode) const {
   const helperOC::DynSys_UMode_Type modified_uMode =
     (uMode == helperOC::DynSys_UMode_Default) ? 
     helperOC::DynSys_UMode_Max : uMode;
 
+  // uOpt = delta, Fx
   // Why is this needed? It is found in Plane.cpp
-  for (size_t dim = 0; dim < 5; ++dim) {
+  for (size_t dim = 0; dim < 7; ++dim) {
     if (deriv_sizes[dim] == 0 || deriv_ptrs[dim] == NULL) {
       return false;
     }
   }
 
   uOpts.resize(get_nu());
+  uOpts[0].resize(deriv_sizes[0]);
+  uOpts[1].resize(deriv_sizes[0]);
+  FLOAT_TYPE A, B, C;
+  FLOAT_TYPE frac, Fxi, FxOpt, value, valueOpt, Fxfi, Fxri, afi, ari, Fzfi, Fzri, Fyfi, Fyri;
+  FLOAT_TYPE sign = (modified_uMode == helperOC::DynSys_UMode_Max) ? 1 : -1;  
+  // Xr, Yr, psi_r, Ux, Uy, v, r
+  // 0    1    2     3   4  5  6
+  size_t N = 1000;
 
-  bool result = true;
+  for (size_t i = 0; i < deriv_sizes[0]; ++i) {
+    A = deriv_ptrs[3][i];       // Fx coefficient
+    B = deriv_ptrs[4][i] + X1::a * deriv_ptrs[6][i];      // Fyf coefficient
+    C = deriv_ptrs[4][i] - X1::b * deriv_ptrs[6][i];      // Fyr coefficient
 
-  // Call helper to determine optimal value for each control component
-  // (we feed the relevant state component affected by each input as well as
-  //  the input values that maximize and minimize this state's derivative).
-  result &= optCtrl_i_cell_helper(uOpts[0], deriv_ptrs, deriv_sizes,
-      modified_uMode, 3, aRange);
+    uOpts[0][i] = (B >= 0) ? sign*X1::d_max : -sign*X1::d_max;
 
-  const beacls::FloatVec& alphaRange{-alphaMax, alphaMax};
-  result &= optCtrl_i_cell_helper(uOpts[1], deriv_ptrs, deriv_sizes,
-      modified_uMode, 4, alphaRange);
-  return result;
+    valueOpt = -sign*9999999;
+
+    for (float n = 0; n < N; ++n) {
+      frac = n/(FLOAT_TYPE)N;
+      Fxi = frac * X1::Fxmax + X1::Fxmin * (1.0 - frac);
+      Fxfi = getFxf(Fxi);
+      Fxri = getFxr(Fxi);
+      afi = std::atan((x_ites[4][i] + X1::a * x_ites[6][i]) / x_ites[3][i]) - uOpt[0][i];
+      ari = std::atan((x_ites[4][i] - X1::b * x_ites[6][i]) / x_ites[3][i]);
+      Fzfi = (X1::m * X1::G * X1::b - X1::h * Fxi) / X1::L;
+      Fzri = (X1::m * X1::G * X1::a + X1::h * Fxi) / X1::L;
+      Fyfi = fialaTireModel(afi, X1::Caf, X1::mu, Fxfi, Fzfi);
+      Fyri = fialaTireModel(ari, X1::Car, X1::mu, Fxri, Fzri);
+      value = A * Fxi + B * Fyfi + C * Fyri
+      if (  ((modified_uMode == helperOC::DynSys_UMode_Max) && (value > valueOpt))|| ((modified_uMode == helperOC::DynSys_UMode_Min) && (value < valueOpt)) ) {
+        FxOpt = Fxi
+        valueOpt = value
+      }
+    }
+    uOpts[1][i] = FxOpt
+  }
+  return true;
 }
 
 
@@ -252,7 +278,7 @@ bool BicycleCAvoid::optDstb(
   dOpts[1].resize(deriv_sizes[0]);
 
   beacls::FloatVec::const_iterator v = x_ites[5];
-  FLOAT_TYPE vi, lam_wi, lam_Axi, lam_Ayi, lam_norm, desAx, desAy, maxAxi, maxAyi;
+  FLOAT_TYPE vi, lam_wi, lam_Axi, lam_Ayi, lam_norm, desAxi, desAyi, maxAxi, maxAyi;
   FLOAT_TYPE maxA = X1::maxA_approx;
   FLOAT_TYPE sign = (modified_dMode == helperOC::DynSys_DMode_Max) ? 1 : -1;
   for (size_t i = 0; i < deriv_sizes[0]; ++i) {
@@ -401,7 +427,6 @@ bool BicycleCAvoid::dynamics_cell_helper(
         Fxri = getFxr(Fxi);
         afi = std::atan((Uy[i] + X1::a * r[i]) / Ux[i]) - di;
         ari = std::atan((Uy[i] - X1::b * r[i]) / Ux[i]);
-        Fxi = Fxfi + Fxri;
         Fzfi = (X1::m * X1::G * X1::b - X1::h * Fxi) / X1::L;
         Fzri = (X1::m * X1::G * X1::a + X1::h * Fxi) / X1::L;
         Fyfi = fialaTireModel(afi, X1::Caf, X1::mu, Fxfi, Fzfi);
@@ -443,7 +468,6 @@ bool BicycleCAvoid::dynamics_cell_helper(
         Fxri = getFxr(Fxi);
         afi = std::atan((Uy[i] + X1::a * r[i]) / Ux[i]) - di;
         ari = std::atan((Uy[i] - X1::b * r[i]) / Ux[i]);
-        Fxi = Fxfi + Fxri;
         Fzfi = (X1::m * X1::G * X1::b - X1::h * Fxi) / X1::L;
         Fzri = (X1::m * X1::G * X1::a + X1::h * Fxi) / X1::L;
         Fyfi = fialaTireModel(afi, X1::Caf, X1::mu, Fxfi, Fzfi);
