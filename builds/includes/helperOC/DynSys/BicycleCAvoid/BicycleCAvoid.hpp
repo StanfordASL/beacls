@@ -159,6 +159,20 @@ namespace helperOC {
                 const beacls::IntegerVec& deriv_sizes,
                 const helperOC::DynSys_DMode_Type dMode
             ) const;
+
+        /*
+        @brief Helper function for computing control constraints
+        */
+        bool BicycleCAvoid::ctrlConstraint(std::vector<FLOAT_TYPE>& b,
+            std::vector<beacls::FloatVec>& m,
+            std::vector<beacls::FloatVec>& us,
+            const std::vector<beacls::FloatVec::const_iterator>& x_ites, 
+            const std::vector<const FLOAT_TYPE*>& deriv_ptrs,  
+            const beacls::IntegerVec& x_sizes, // xsizes
+            const beacls::IntegerVec& deriv_sizes,
+            const helperOC::DynSys_DMode_Type dMode
+            ) const;
+
         /*
         @brief Helper function for dynamics
         */
@@ -252,6 +266,15 @@ namespace helperOC {
         {}
 
         FLOAT_TYPE fialaTireModel(const FLOAT_TYPE a,
+                                  const FLOAT_TYPE Ca,
+                                  const FLOAT_TYPE mu,
+                                  const FLOAT_TYPE Fx,
+                                  const FLOAT_TYPE Fz);
+
+        bool gradientFialaTireModel(FLOAT_TYPE& da,
+                                  FLOAT_TYPE& dfx,
+                                  FLOAT_TYPE& dfz
+                                  const FLOAT_TYPE a,
                                   const FLOAT_TYPE Ca,
                                   const FLOAT_TYPE mu,
                                   const FLOAT_TYPE Fx,
