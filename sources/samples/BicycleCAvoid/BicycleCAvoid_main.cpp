@@ -91,15 +91,15 @@ int main(int argc, char *argv[])
 	// const beacls::FloatVec gMin = beacls::FloatVec{ (FLOAT_TYPE)-10, (FLOAT_TYPE)-15, (FLOAT_TYPE)0 };
 	// const beacls::FloatVec gMax = beacls::FloatVec{ (FLOAT_TYPE)25, (FLOAT_TYPE)15, (FLOAT_TYPE)(2*M_PI) };
 	// x_rel, y_rel, psi_rel, Ux, Uy, v, r
-	const beacls::FloatVec gMin = beacls::FloatVec{ (FLOAT_TYPE)-20, (FLOAT_TYPE)-5, (FLOAT_TYPE)-M_PI, (FLOAT_TYPE)0, (FLOAT_TYPE)-2, (FLOAT_TYPE)0, (FLOAT_TYPE)-1 };
-	const beacls::FloatVec gMax = beacls::FloatVec{ (FLOAT_TYPE)20, (FLOAT_TYPE)5, (FLOAT_TYPE)M_PI, (FLOAT_TYPE)10, (FLOAT_TYPE)2, (FLOAT_TYPE)10, (FLOAT_TYPE)1 };
+	const beacls::FloatVec gMin = beacls::FloatVec{ (FLOAT_TYPE)-20, (FLOAT_TYPE)-5, (FLOAT_TYPE)-M_PI, (FLOAT_TYPE)2, (FLOAT_TYPE)-2, (FLOAT_TYPE)2, (FLOAT_TYPE)-1 };
+	const beacls::FloatVec gMax = beacls::FloatVec{ (FLOAT_TYPE)20, (FLOAT_TYPE)5, (FLOAT_TYPE)M_PI, (FLOAT_TYPE)15, (FLOAT_TYPE)2, (FLOAT_TYPE)15, (FLOAT_TYPE)1 };
 	beacls::IntegerVec gN;
 	gN.resize(7, gN_size);
 	levelset::HJI_Grid* g = helperOC::createGrid(gMin, gMax, gN);
 
 	//!< Time
 	//!< Choose tMax to be large enough for the set to converge
-	const FLOAT_TYPE tMax = 3;
+	const FLOAT_TYPE tMax = 5;
 	const FLOAT_TYPE dt = (FLOAT_TYPE)0.1;
 	const beacls::FloatVec tau = generateArithmeticSequence<FLOAT_TYPE>(0., dt, tMax);
 
