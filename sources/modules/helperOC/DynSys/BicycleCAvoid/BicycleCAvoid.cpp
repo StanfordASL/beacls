@@ -318,67 +318,67 @@ bool BicycleCAvoid::optDstb(
 }
 
 
-bool BicycleCAvoid::ctrlConstraint(std::vector<FLOAT_TYPE>& b,
-    std::vector<beacls::FloatVec>& m,
-    std::vector<beacls::FloatVec>& us,
-    const std::vector<beacls::FloatVec::const_iterator>& x_ites, 
-    const std::vector<const FLOAT_TYPE*>& deriv_ptrs,  
-    const beacls::IntegerVec& x_sizes, // xsizes
-    const beacls::IntegerVec& deriv_sizes,
-    const helperOC::DynSys_DMode_Type dMode) const {
+// bool BicycleCAvoid::ctrlConstraint(std::vector<FLOAT_TYPE>& b,
+//     std::vector<beacls::FloatVec>& m,
+//     std::vector<beacls::FloatVec>& us,
+//     const std::vector<beacls::FloatVec::const_iterator>& x_ites, 
+//     const std::vector<const FLOAT_TYPE*>& deriv_ptrs,  
+//     const beacls::IntegerVec& x_sizes, // xsizes
+//     const beacls::IntegerVec& deriv_sizes,
+//     const helperOC::DynSys_DMode_Type dMode) const {
 
-  // uOpt = delta, Fx
-  // Why is this needed? It is found in Plane.cpp
-  for (size_t dim = 0; dim < 7; ++dim) {
-    if (deriv_sizes[dim] == 0 || deriv_ptrs[dim] == NULL) {
-      return false;
-    }
-  }
+//   // uOpt = delta, Fx
+//   // Why is this needed? It is found in Plane.cpp
+//   for (size_t dim = 0; dim < 7; ++dim) {
+//     if (deriv_sizes[dim] == 0 || deriv_ptrs[dim] == NULL) {
+//       return false;
+//     }
+//   }
 
-  FLOAT_TYPE t, daf, dfxf, dfzf, dar, dfxr, dfzr, dfxfdfx, dfxrdfx, dFyfdFx, dFyrdFx, dFxfdd;
-  std::vector<beacls::FloatVec>& dOpts, dx, di, Fx;
-  bool gradFiala;
-  bool dOpt = optDstb(dOpts, t, x_ites, deriv_ptrs, x_sizes, deriv_sizes, dMode);
+//   FLOAT_TYPE t, daf, dfxf, dfzf, dar, dfxr, dfzr, dfxfdfx, dfxrdfx, dFyfdFx, dFyrdFx, dFxfdd;
+//   std::vector<beacls::FloatVec>& dOpts, dx, di, Fx;
+//   bool gradFiala;
+//   bool dOpt = optDstb(dOpts, t, x_ites, deriv_ptrs, x_sizes, deriv_sizes, dMode);
 
-  di = us[0];
-  Fxi = us[1];
-  Fxfi = getFxf(Fxi);
-  Fxri = getFxr(Fxi);
-  dfxfdfx = (Fxi > 0) ? 0 : 0.6;
-  dfxrdfx = 0.4;
+//   di = us[0];
+//   Fxi = us[1];
+//   Fxfi = getFxf(Fxi);
+//   Fxri = getFxr(Fxi);
+//   dfxfdfx = (Fxi > 0) ? 0 : 0.6;
+//   dfxrdfx = 0.4;
 
-  for (size_t i = 0; i < deriv_sizes[0]; ++i)  {   
-      b[i] = 0;
-      m[0][i] = 0;
-      m[1][i] = 0
-      afi = std::atan((x_iter[4][i] + X1::a * x_ites[6][i]) / x_ites[3][i]) - di;
-      ari = std::atan((x_iter[4][i] - X1::b * x_ites[6][i]) / x_ites[3][i]);
-      Fzfi = (X1::m * X1::G * X1::b - X1::h * Fxi) / X1::L;
-      Fzri = (X1::m * X1::G * X1::a + X1::h * Fxi) / X1::L;
-      Fyfi = fialaTireModel(afi, X1::Caf, X1::mu, Fxfi, Fzfi);
-      Fyri = fialaTireModel(ari, X1::Car, X1::mu, Fxri, Fzri);
-      gradFiala = gradientFialaTireModel(daf, dfxf, dfzf, afi, Caf, mu, Fxfi, Fzfi) 
-      gradFiala *= gradientFialaTireModel(dar, dfxr, dfzr, ari, Car, mu, Fxri, Fzri) 
-      dFyfdFx = dfxf * dfxfdfx - dfzf * X1::h / X1::L;
-      dFyrdFx = dfxr * dfxrdfx + dfzr * X1::h / X1::L;
-      dFxfdd = -daf 
-    for (int n = 0; n < 7; n++){
-      b[i] += deriv_ptrs[n][i] * dx[n][i];
-      if (n == 3) {
-        m[1][i] += deriv_ptrs[n][i] * 1/X1::m;
-      }
-      if (n == 4) {
-        m[1][i] += deriv_ptrs[n][i] * (dFyfdFx + dFyrdFx) / X1::m;
-        m[0][i] += deriv_ptrs[n][i] * dFxfdd / X1::m;
-      }
-      if (n == 6) {
-        m[1][i] += deriv_ptrs[n][i] * (X1::a * dFyfdFx - X1::b * dFyrdFx) / X1::Izz;
-        m[0][i] += deriv_ptrs[n][i] * X1::a * dFxfdd / X1::Izz;
-      }
-    }
-  }
-  return true;
-}
+//   for (size_t i = 0; i < deriv_sizes[0]; ++i)  {   
+//       b[i] = 0;
+//       m[0][i] = 0;
+//       m[1][i] = 0
+//       afi = std::atan((x_iter[4][i] + X1::a * x_ites[6][i]) / x_ites[3][i]) - di;
+//       ari = std::atan((x_iter[4][i] - X1::b * x_ites[6][i]) / x_ites[3][i]);
+//       Fzfi = (X1::m * X1::G * X1::b - X1::h * Fxi) / X1::L;
+//       Fzri = (X1::m * X1::G * X1::a + X1::h * Fxi) / X1::L;
+//       Fyfi = fialaTireModel(afi, X1::Caf, X1::mu, Fxfi, Fzfi);
+//       Fyri = fialaTireModel(ari, X1::Car, X1::mu, Fxri, Fzri);
+//       gradFiala = gradientFialaTireModel(daf, dfxf, dfzf, afi, Caf, mu, Fxfi, Fzfi) 
+//       gradFiala *= gradientFialaTireModel(dar, dfxr, dfzr, ari, Car, mu, Fxri, Fzri) 
+//       dFyfdFx = dfxf * dfxfdfx - dfzf * X1::h / X1::L;
+//       dFyrdFx = dfxr * dfxrdfx + dfzr * X1::h / X1::L;
+//       dFxfdd = -daf 
+//     for (int n = 0; n < 7; n++){
+//       b[i] += deriv_ptrs[n][i] * dx[n][i];
+//       if (n == 3) {
+//         m[1][i] += deriv_ptrs[n][i] * 1/X1::m;
+//       }
+//       if (n == 4) {
+//         m[1][i] += deriv_ptrs[n][i] * (dFyfdFx + dFyrdFx) / X1::m;
+//         m[0][i] += deriv_ptrs[n][i] * dFxfdd / X1::m;
+//       }
+//       if (n == 6) {
+//         m[1][i] += deriv_ptrs[n][i] * (X1::a * dFyfdFx - X1::b * dFyrdFx) / X1::Izz;
+//         m[0][i] += deriv_ptrs[n][i] * X1::a * dFxfdd / X1::Izz;
+//       }
+//     }
+//   }
+//   return true;
+// }
 
 
 bool gradientFialaTireModel(FLOAT_TYPE& da,
@@ -417,7 +417,7 @@ bool gradientFialaTireModel(FLOAT_TYPE& da,
     if (ratio < 1){
       dfx = -Ca * tana * (- drdfx + 2 / 3 * ratio * drdfx);
       dfz = -Ca * tana * (- drdfz + 2 / 3 * ratio * drdfz);
-      dz = -Ca * seca * seca * (1 - ratio + ratio * ratio /3) - ca * tana * (- drda + 2 / 3 * ratio * drda);
+      da = -Ca * seca * seca * (1 - ratio + ratio * ratio /3) - Ca * tana * (- drda + 2 / 3 * ratio * drda);
       return true;
     }
     else {
