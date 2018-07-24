@@ -116,7 +116,7 @@ endif
 ifeq ($(PROFILE_ON), Y)
 ifeq ($(GPU_ON), N)
 	CFLAGS += -pg
-	LDFLAGS += -pg 
+	LDFLAGS += -pg
 endif
 endif
 ifeq ($(OPTIMIZE), 0)

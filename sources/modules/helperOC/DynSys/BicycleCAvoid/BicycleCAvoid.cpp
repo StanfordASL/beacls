@@ -45,6 +45,7 @@
 #include <helperOC/DynSys/BicycleCAvoid/BicycleCAvoid.hpp>
 #include <iostream>
 #include <cmath>
+#include <limits>
 #include <algorithm>
 #include <typeinfo>
 #include <levelset/Grids/HJI_Grid.hpp>
@@ -103,98 +104,16 @@ bool BicycleCAvoid::save(
   return result;
 }
 
-bool BicycleCAvoid::optCtrl_i_cell_helper(
-    beacls::FloatVec& uOpt_i, // Relevant component i of the optimal input
-    const std::vector<const FLOAT_TYPE*>& derivs,
-    const beacls::IntegerVec& deriv_sizes,
-    const helperOC::DynSys_UMode_Type uMode,
-    const size_t src_target_dim_index, // Relevant state j affected by input i
-    const beacls::FloatVec& uExtr_i // [u_minimizer_xj_dot, u_maximizer_xj_dot]
-    ) const {
-
-  if (src_target_dim_index < dims.size()) {
-    const FLOAT_TYPE* deriv_j = derivs[src_target_dim_index];
-    const size_t length = deriv_sizes[src_target_dim_index];
-
-    if (length == 0 || deriv_j == NULL) 
-      return false;
-
-    uOpt_i.resize(length);
-    
-    switch (uMode) {
-      case helperOC::DynSys_UMode_Max:
-        for (size_t ii = 0; ii < length; ++ii) { // iterate over grid
-          uOpt_i[ii] = (deriv_j[ii] >= 0) ? uExtr_i[1] : uExtr_i[0];
-        }
-        break;
-     
-      case helperOC::DynSys_UMode_Min:
-        for (size_t ii = 0; ii < length; ++ii) {
-          uOpt_i[ii] = (deriv_j[ii] >= 0) ? uExtr_i[0] : uExtr_i[1];
-        }
-        break;
-     
-      case helperOC::DynSys_UMode_Invalid:
-     
-      default:
-          std::cerr << "Unknown uMode!: " << uMode << std::endl;
-          return false;
-    }
-  }
-
-  return true;
-} 
-
-
-bool BicycleCAvoid::optDstb_i_cell_helper(
-    beacls::FloatVec& dOpt_i, // Relevant component i of the optimal input
-    const std::vector<const FLOAT_TYPE*>& derivs,
-    const beacls::IntegerVec& deriv_sizes,
-    const helperOC::DynSys_DMode_Type dMode,
-    const size_t src_target_dim_index, // Relevant state j affected by input i
-    const beacls::FloatVec& dExtr_i // [u_minimizer_xj_dot, u_maximizer_xj_dot]
-    ) const {
-  
-  if (src_target_dim_index < dims.size()) {
-    const FLOAT_TYPE* deriv_j = derivs[src_target_dim_index];
-    const size_t length = deriv_sizes[src_target_dim_index];
-
-    if (length == 0 || deriv_j == NULL) 
-      return false;
-
-    dOpt_i.resize(length);
-
-    switch (dMode) {
-      case helperOC::DynSys_DMode_Max:
-        for (size_t ii = 0; ii < length; ++ii) { // iterate over grid
-            dOpt_i[ii] = (deriv_j[ii] >= 0) ? dExtr_i[1] : dExtr_i[0];
-        }
-        break;
-      case helperOC::DynSys_DMode_Min:
-        for (size_t ii = 0; ii < length; ++ii) {
-            dOpt_i[ii] = (deriv_j[ii] >= 0) ? dExtr_i[0] : dExtr_i[1];
-        }
-        break;
-      case helperOC::DynSys_DMode_Invalid:
-      default:
-        std::cerr << "Unknown dMode!: " << dMode << std::endl;
-        return false;
-    }
-  }
-  return true;
-} 
-
-
 bool BicycleCAvoid::optCtrl(
     std::vector<beacls::FloatVec>& uOpts,
     const FLOAT_TYPE,
-    const std::vector<beacls::FloatVec::const_iterator>& x_ites, 
-    const std::vector<const FLOAT_TYPE*>& deriv_ptrs,  
+    const std::vector<beacls::FloatVec::const_iterator>& x_ites,
+    const std::vector<const FLOAT_TYPE*>& deriv_ptrs,
     const beacls::IntegerVec&, // xsizes
     const beacls::IntegerVec& deriv_sizes,
     const helperOC::DynSys_UMode_Type uMode) const {
   const helperOC::DynSys_UMode_Type modified_uMode =
-    (uMode == helperOC::DynSys_UMode_Default) ? 
+    (uMode == helperOC::DynSys_UMode_Default) ?
     helperOC::DynSys_UMode_Max : uMode;
 
   // uOpt = delta, Fx
@@ -210,23 +129,24 @@ bool BicycleCAvoid::optCtrl(
   uOpts[1].resize(deriv_sizes[0]);
   FLOAT_TYPE A, B, C;
   FLOAT_TYPE frac, Fxi, FxOpt, value, valueOpt, Fxfi, Fxri, afi, ari, Fzfi, Fzri, Fyfi, Fyri;
-  FLOAT_TYPE sign = (modified_uMode == helperOC::DynSys_UMode_Max) ? 1 : -1;  
+  FLOAT_TYPE sign = (modified_uMode == helperOC::DynSys_UMode_Max) ? 1 : -1;
   // Xr, Yr, psi_r, Ux, Uy, v, r
   // 0    1    2     3   4  5  6
-  size_t N = 1000;
+  size_t N = 50;
 
   for (size_t i = 0; i < deriv_sizes[0]; ++i) {
-    A = deriv_ptrs[3][i];       // Fx coefficient
-    B = deriv_ptrs[4][i] + X1::a * deriv_ptrs[6][i];      // Fyf coefficient
-    C = deriv_ptrs[4][i] - X1::b * deriv_ptrs[6][i];      // Fyr coefficient
+    A = deriv_ptrs[3][i] / X1::m;       // Fx coefficient
+    B = deriv_ptrs[4][i] / X1::m + X1::a * deriv_ptrs[6][i] / X1::Izz;      // Fyf coefficient
+    C = deriv_ptrs[4][i] / X1::m - X1::b * deriv_ptrs[6][i] / X1::Izz;      // Fyr coefficient
 
     uOpts[0][i] = (B >= 0) ? sign*X1::d_max : -sign*X1::d_max;
 
-    valueOpt = -sign*9999999;
+    valueOpt = (sign > 0) ? std::numeric_limits<FLOAT_TYPE>::lowest() :
+                            std::numeric_limits<FLOAT_TYPE>::max();
 
-    for (float n = 0; n < N; ++n) {
-      frac = n/(FLOAT_TYPE)N;
-      Fxi = frac * X1::Fxmax + X1::Fxmin * (1.0 - frac);
+    for (int n = 0; n < N; ++n) {
+      frac = ((FLOAT_TYPE)n)/((FLOAT_TYPE)(N-1));
+      Fxi = frac * X1::maxFx + X1::minFx * (1.0 - frac);
       Fxfi = getFxf(Fxi);
       Fxri = getFxr(Fxi);
       afi = std::atan((x_ites[4][i] + X1::a * x_ites[6][i]) / x_ites[3][i]) - uOpt[0][i];
@@ -235,17 +155,17 @@ bool BicycleCAvoid::optCtrl(
       Fzri = (X1::m * X1::G * X1::a + X1::h * Fxi) / X1::L;
       Fyfi = fialaTireModel(afi, X1::Caf, X1::mu, Fxfi, Fzfi);
       Fyri = fialaTireModel(ari, X1::Car, X1::mu, Fxri, Fzri);
-      value = A * Fxi + B * Fyfi + C * Fyri
-      if (  ((modified_uMode == helperOC::DynSys_UMode_Max) && (value > valueOpt))|| ((modified_uMode == helperOC::DynSys_UMode_Min) && (value < valueOpt)) ) {
-        FxOpt = Fxi
-        valueOpt = value
+      value = A * Fxi + B * Fyfi + C * Fyri;
+      if ( ((modified_uMode == helperOC::DynSys_UMode_Max) && (value > valueOpt)) ||
+           ((modified_uMode == helperOC::DynSys_UMode_Min) && (value < valueOpt)) ) {
+        FxOpt = Fxi;
+        valueOpt = value;
       }
     }
-    uOpts[1][i] = FxOpt
+    uOpts[1][i] = FxOpt;
   }
   return true;
 }
-
 
 bool BicycleCAvoid::optDstb(
     std::vector<beacls::FloatVec>& dOpts,
@@ -429,7 +349,6 @@ bool gradientFialaTireModel(FLOAT_TYPE& da,
   }
   return false
 }
-
 
 FLOAT_TYPE fialaTireModel(const FLOAT_TYPE a,
                           const FLOAT_TYPE Ca,
