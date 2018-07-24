@@ -1,3 +1,6 @@
+bicycle:
+	cd BicycleCAvoid && make all
+
 all:
 	cd test_reachiability && make all
 	cd air3D && make all
