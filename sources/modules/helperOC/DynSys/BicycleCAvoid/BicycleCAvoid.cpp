@@ -149,7 +149,7 @@ bool BicycleCAvoid::optCtrl(
       Fxi = frac * X1::maxFx + X1::minFx * (1.0 - frac);
       Fxfi = getFxf(Fxi);
       Fxri = getFxr(Fxi);
-      afi = std::atan((x_ites[4][i] + X1::a * x_ites[6][i]) / x_ites[3][i]) - uOpt[0][i];
+      afi = std::atan((x_ites[4][i] + X1::a * x_ites[6][i]) / x_ites[3][i]) - uOpts[0][i];
       ari = std::atan((x_ites[4][i] - X1::b * x_ites[6][i]) / x_ites[3][i]);
       Fzfi = (X1::m * X1::G * X1::b - X1::h * Fxi) / X1::L;
       Fzri = (X1::m * X1::G * X1::a + X1::h * Fxi) / X1::L;
@@ -301,60 +301,60 @@ bool BicycleCAvoid::optDstb(
 // }
 
 
-bool gradientFialaTireModel(FLOAT_TYPE& da,
-                                  FLOAT_TYPE& dfx,
-                                  FLOAT_TYPE& dfz
-                                  const FLOAT_TYPE a,
-                                  const FLOAT_TYPE Ca,
-                                  const FLOAT_TYPE mu,
-                                  const FLOAT_TYPE Fx,
-                                  const FLOAT_TYPE Fz) {
-  FLOAT_TYPE Fmax = mu * Fz;
-  if (std::abs(Fx) >= Fmax){
-    da = 0;
-    dfx = 0;
-    dfz = 0;
-    return true;
-  }
-  else {
-    FLOAT_TYPE Fymax = std::sqrt(Fmax * Fmax - Fx * Fx);
-    FLOAT_TYPE tana = std::tan(a);
-    FLOAT_TYPE tana_slide = 3 * Fymax / Ca;
-    FLOAT_TYPE ratio = std::abs(tana / tana_slide);
-    FLOAT_TYPE drda, drffx, drdfz;
-    FLOAT_TYPE seca = 1.0 / std::cos(a);
+// bool BicycleCAvoid::gradientFialaTireModel(FLOAT_TYPE& da,
+//                                            FLOAT_TYPE& dfx,
+//                                            FLOAT_TYPE& dfz,
+//                                            const FLOAT_TYPE a,
+//                                            const FLOAT_TYPE Ca,
+//                                            const FLOAT_TYPE mu,
+//                                            const FLOAT_TYPE Fx,
+//                                            const FLOAT_TYPE Fz) {
+//   FLOAT_TYPE Fmax = mu * Fz;
+//   if (std::abs(Fx) >= Fmax){
+//     da = 0;
+//     dfx = 0;
+//     dfz = 0;
+//     return true;
+//   }
+//   else {
+//     FLOAT_TYPE Fymax = std::sqrt(Fmax * Fmax - Fx * Fx);
+//     FLOAT_TYPE tana = std::tan(a);
+//     FLOAT_TYPE tana_slide = 3 * Fymax / Ca;
+//     FLOAT_TYPE ratio = std::abs(tana / tana_slide);
+//     FLOAT_TYPE drda, drffx, drdfz;
+//     FLOAT_TYPE seca = 1.0 / std::cos(a);
 
-    if (tana / tana_slide > 0){
-      drda = seca * seca / tana_slide;
-      drdfx = Ca * tana * Fx / 3 / Fymax / Fymax / Fymax;
-      drdfz = -Ca * tana  * mu * mu * Fz / 3 * Fymax / Fymax / Fymax;
-    } else {
-      drda = -seca * seca / tana_slide;
-      drdfx = -Ca * tana * Fx / 3 / Fymax / Fymax / Fymax;
-      drdfz = Ca * tana  * mu * mu * Fz / 3 * Fymax / Fymax / Fymax;     
-    }
+//     if (tana / tana_slide > 0){
+//       drda = seca * seca / tana_slide;
+//       drdfx = Ca * tana * Fx / 3 / Fymax / Fymax / Fymax;
+//       drdfz = -Ca * tana  * mu * mu * Fz / 3 * Fymax / Fymax / Fymax;
+//     } else {
+//       drda = -seca * seca / tana_slide;
+//       drdfx = -Ca * tana * Fx / 3 / Fymax / Fymax / Fymax;
+//       drdfz = Ca * tana  * mu * mu * Fz / 3 * Fymax / Fymax / Fymax;     
+//     }
 
-    if (ratio < 1){
-      dfx = -Ca * tana * (- drdfx + 2 / 3 * ratio * drdfx);
-      dfz = -Ca * tana * (- drdfz + 2 / 3 * ratio * drdfz);
-      da = -Ca * seca * seca * (1 - ratio + ratio * ratio /3) - Ca * tana * (- drda + 2 / 3 * ratio * drda);
-      return true;
-    }
-    else {
-      dfx = std::copysign(Fx / Fymax , tana);
-      dfz = -std::copysign(mu * mu * Fz / Fymax , tana);
-      da = 0;
-      return true
-    }
-  }
-  return false
-}
+//     if (ratio < 1){
+//       dfx = -Ca * tana * (- drdfx + 2 / 3 * ratio * drdfx);
+//       dfz = -Ca * tana * (- drdfz + 2 / 3 * ratio * drdfz);
+//       da = -Ca * seca * seca * (1 - ratio + ratio * ratio /3) - Ca * tana * (- drda + 2 / 3 * ratio * drda);
+//       return true;
+//     }
+//     else {
+//       dfx = std::copysign(Fx / Fymax , tana);
+//       dfz = -std::copysign(mu * mu * Fz / Fymax , tana);
+//       da = 0;
+//       return true
+//     }
+//   }
+//   return false
+// }
 
-FLOAT_TYPE fialaTireModel(const FLOAT_TYPE a,
-                          const FLOAT_TYPE Ca,
-                          const FLOAT_TYPE mu,
-                          const FLOAT_TYPE Fx,
-                          const FLOAT_TYPE Fz) {
+FLOAT_TYPE BicycleCAvoid::fialaTireModel(const FLOAT_TYPE a,
+                                         const FLOAT_TYPE Ca,
+                                         const FLOAT_TYPE mu,
+                                         const FLOAT_TYPE Fx,
+                                         const FLOAT_TYPE Fz) const {
   FLOAT_TYPE Fmax = mu * Fz;
   if (std::abs(Fx) >= Fmax)
     return 0;
@@ -445,7 +445,7 @@ bool BicycleCAvoid::dynamics_cell_helper(
       dx_i.resize(size_Uy);
       const beacls::FloatVec&  d = us[0];
       const beacls::FloatVec& Fx = us[1];
-      FLOAT_TYPE di, Fxi, Fxfi, Fxri, afi, ari, Fxi, Fzfi, Fzri, Fyfi, Fyri;
+      FLOAT_TYPE di, Fxi, Fxfi, Fxri, afi, ari, Fzfi, Fzri, Fyfi, Fyri;
 
       for (size_t i = 0; i < size_Uy; ++i) {
         if (d.size() == size_Uy)
@@ -483,17 +483,17 @@ bool BicycleCAvoid::dynamics_cell_helper(
     } break;
 
     case 6: { // r_dot = (a * Fyf - b * Fyr) / Izz
-      dx_i.resize(size_Ur);
+      dx_i.resize(size_r);
       const beacls::FloatVec&  d = us[0];
       const beacls::FloatVec& Fx = us[1];
-      FLOAT_TYPE di, Fxi, Fxfi, Fxri, afi, ari, Fxi, Fzfi, Fzri, Fyfi, Fyri;
+      FLOAT_TYPE di, Fxi, Fxfi, Fxri, afi, ari, Fzfi, Fzri, Fyfi, Fyri;
 
-      for (size_t i = 0; i < size_Ur; ++i) {
-        if (d.size() == size_Ur)
+      for (size_t i = 0; i < size_r; ++i) {
+        if (d.size() == size_r)
           di = d[i];
         else
           di = d[0];
-        if (Fx.size() == size_Ur)
+        if (Fx.size() == size_r)
           Fxi = Fx[i];
         else
           Fxi = Fx[0];

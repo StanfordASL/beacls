@@ -14,7 +14,7 @@ namespace levelset {
 	static const FLOAT_TYPE defaultMax = 1.;
 	static const size_t defaultN = 101;
 	//! This is just to avoid attempts to allocate 100 dimensional arrays.
-	static const size_t maxDimension = 5;
+	static const size_t maxDimension = 8;
 	static const std::vector<FLOAT_TYPE> defaultBoundaryData;
 
 	class HJI_Grid_impl {

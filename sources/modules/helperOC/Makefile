@@ -151,8 +151,8 @@ else
 	ALL_LDFLAGS += $(LDFLAGS)
 endif
 
-vpath %.cpp .:DnSys:Grids:Hamiltonians:ValFuncs:DynSys:DynSys/Air3D:DynSys/DubinsCar:DynSys/DubinsCarCAvoid:DynSys/DynSys:DynSys/KinVehicleND:DynSys/Plane:DynSys/PlaneCAvoid:DynSys/Plane4D:DynSys/Quad4D:DynSys/P5D_Dubins:Legacy
-vpath %.cu .:DnSys:Grids:Hamiltonians:ValFuncs:DynSys:DynSys/Air3D:DynSys/DubinsCar:DynSys/DubinsCarCAvoid:DynSys/DynSys:DynSys/KinVehicleND:DynSys/Plane:DynSys/PlaneCAvoid:DynSys/Plane4D:DynSys/Quad4D:DynSys/P5D_Dubins:Legacy
+vpath %.cpp .:DnSys:Grids:Hamiltonians:ValFuncs:DynSys:DynSys/Air3D:DynSys/DubinsCar:DynSys/DubinsCarCAvoid:DynSys/DynSys:DynSys/KinVehicleND:DynSys/Plane:DynSys/PlaneCAvoid:DynSys/Plane4D:DynSys/Quad4D:DynSys/P5D_Dubins:DynSys/BicycleCAvoid:Legacy
+vpath %.cu .:DnSys:Grids:Hamiltonians:ValFuncs:DynSys:DynSys/Air3D:DynSys/DubinsCar:DynSys/DubinsCarCAvoid:DynSys/DynSys:DynSys/KinVehicleND:DynSys/Plane:DynSys/PlaneCAvoid:DynSys/Plane4D:DynSys/Quad4D:DynSys/P5D_Dubins:DynSys/BicycleCAvoid:Legacy
 
 LIBS     = 
 INCLUDE  = -I$(INSTALL_DIR)/includes
@@ -201,7 +201,8 @@ SOURCES  = augmentPeriodicData.cpp \
 	ComputeGradients_Worker.cpp \
 	ComputeOptTraj.cpp \
 	ExtractCostates.cpp \
-	P5D_Dubins.cpp
+	P5D_Dubins.cpp \
+	BicycleCAvoid.cpp
 
 CUDA_SOURCES = ComputeGradients_OneSlice_cuda.cu \
 	DubinsCar_cuda.cu \

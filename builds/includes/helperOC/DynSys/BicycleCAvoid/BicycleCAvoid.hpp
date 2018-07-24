@@ -245,21 +245,21 @@ namespace helperOC {
                                   const FLOAT_TYPE Ca,
                                   const FLOAT_TYPE mu,
                                   const FLOAT_TYPE Fx,
-                                  const FLOAT_TYPE Fz);
+                                  const FLOAT_TYPE Fz) const;
 
-        bool gradientFialaTireModel(FLOAT_TYPE& da,
-                                  FLOAT_TYPE& dfx,
-                                  FLOAT_TYPE& dfz
-                                  const FLOAT_TYPE a,
-                                  const FLOAT_TYPE Ca,
-                                  const FLOAT_TYPE mu,
-                                  const FLOAT_TYPE Fx,
-                                  const FLOAT_TYPE Fz);
+        // bool gradientFialaTireModel(FLOAT_TYPE& da,
+        //                             FLOAT_TYPE& dfx,
+        //                             FLOAT_TYPE& dfz,
+        //                             const FLOAT_TYPE a,
+        //                             const FLOAT_TYPE Ca,
+        //                             const FLOAT_TYPE mu,
+        //                             const FLOAT_TYPE Fx,
+        //                             const FLOAT_TYPE Fz) const;
 
-        FLOAT_TYPE getFxf(const FLOAT_TYPE Fx) {
+        FLOAT_TYPE getFxf(const FLOAT_TYPE Fx) const {
             return (Fx > 0) ? Fx*X1::fwd_frac : Fx*X1::fwb_frac;
         }
-        FLOAT_TYPE getFxr(const FLOAT_TYPE Fx) {
+        FLOAT_TYPE getFxr(const FLOAT_TYPE Fx) const {
             return (Fx > 0) ? Fx*X1::rwd_frac : Fx*X1::rwb_frac;
         }
     };
