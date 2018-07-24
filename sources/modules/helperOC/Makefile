@@ -55,7 +55,7 @@ endif
 
 CFLAGS   += -mfpmath=sse -msse2 -g -march=native
 CPPFLAGS += -std=c++14
-NVCCFLAGS += -std=c++11
+# NVCCFLAGS += -std=c++11
 
 ifeq ($(FMA_ON), N)
 	CFLAGS	+= -mno-fma
