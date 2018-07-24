@@ -4,7 +4,7 @@
 #include <cmath>
 #include <typedef.hpp>
 
-using namespace X1;
+namespace X1 {
 
 static const FLOAT_TYPE G = 9.80665;                                                   // gravity
 static const FLOAT_TYPE mfl = 484;                                                     // weight at front left wheel (kg)
@@ -50,8 +50,8 @@ static const FLOAT_TYPE fwb_frac = 0.6;                                         
 static const FLOAT_TYPE rwb_frac = 1 - fwb_frac;                                       // rear wheel brake fraction for implementing desired Fx
 
 // Maximum Brake Force
-static const FLOAT_TYPE minFx = std::max(-m*G*a*mu/(L*rwb_fac + mu*h),
-                                         -m*G*b*mu/(L*fwb_fac - mu*h));
+static const FLOAT_TYPE minFx = std::max(-m*G*a*mu/(L*rwb_frac + mu*h),
+                                         -m*G*b*mu/(L*fwb_frac - mu*h));
 static const FLOAT_TYPE maxAx = maxFx/m;
 static const FLOAT_TYPE minAx = minFx/m;
 static const FLOAT_TYPE maxP2mx = maxPower/m;
@@ -61,5 +61,7 @@ static const FLOAT_TYPE d_max = 18*3.1415926/180;
 static const FLOAT_TYPE w_per_v_max_lowspeed = std::tan(d_max)/L;
 
 static const FLOAT_TYPE maxA_approx = 0.9*mu*G; // TODO: check, used to be w_v_max_highspeed
+
+};
 
 #endif  /* __X1Params_hpp__ */
