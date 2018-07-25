@@ -20,12 +20,12 @@ int main(int argc, char *argv[])
 {
     // 0 (name) 1, 2, 3, 4, 5, 6, 7 are the grid sizes,
     beacls::IntegerVec gN;
-    gN.resize(7, 11);
-    if (argc >= 8) {
-        for (int i = 1; i <= 7; ++i){
-            gN[i-1] = atoi(argv[i]);
-        }
-    }
+    gN.resize(7, 7);
+//     if (argc >= 8) {
+//         for (int i = 1; i <= 7; ++i){
+//             gN[i-1] = atoi(argv[i]);
+//         }
+//     }
 
 /////////////////////////////////////////////////////
     // Ask Mo about these settings
@@ -120,7 +120,14 @@ int main(int argc, char *argv[])
     helperOC::DynSysSchemeData* sD = new helperOC::DynSysSchemeData;
     sD->set_grid(g);
     // Note: Initial conditions are needed if you want a trajectory.
-    sD->dynSys = new helperOC::BicycleCAvoid(beacls::FloatVec{ (FLOAT_TYPE)0.,(FLOAT_TYPE)0.,(FLOAT_TYPE)0.,(FLOAT_TYPE)0.,(FLOAT_TYPE)0.,(FLOAT_TYPE)0.,(FLOAT_TYPE)0.}, beacls::IntegerVec{ 0,1,2,3,4,5,6 });
+    sD->dynSys = new helperOC::BicycleCAvoid(beacls::FloatVec{(FLOAT_TYPE)0.,
+                                                              (FLOAT_TYPE)0.,
+                                                              (FLOAT_TYPE)0.,
+                                                              (FLOAT_TYPE)0.,
+                                                              (FLOAT_TYPE)0.,
+                                                              (FLOAT_TYPE)0.,
+                                                              (FLOAT_TYPE)0.},
+                                                              beacls::IntegerVec{ 0,1,2,3,4,5,6 });
     sD->uMode = helperOC::DynSys_UMode_Max;
     sD->dMode = helperOC::DynSys_DMode_Min;
 
