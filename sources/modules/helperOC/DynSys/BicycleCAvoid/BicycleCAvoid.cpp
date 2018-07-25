@@ -143,14 +143,15 @@ bool BicycleCAvoid::optCtrl(
 
     valueOpt = (sign > 0) ? std::numeric_limits<FLOAT_TYPE>::lowest() :
                             std::numeric_limits<FLOAT_TYPE>::max();
+    FxOpt = 0;
 
-    for (int n = 0; n < N; ++n) {
+    for (size_t n = 0; n < N; ++n) {
       frac = ((FLOAT_TYPE)n)/((FLOAT_TYPE)(N-1));
       Fxi = frac * X1::maxFx + X1::minFx * (1.0 - frac);
       Fxfi = getFxf(Fxi);
       Fxri = getFxr(Fxi);
-      afi = std::atan((x_ites[4][i] + X1::a * x_ites[6][i]) / x_ites[3][i]) - uOpts[0][i];
-      ari = std::atan((x_ites[4][i] - X1::b * x_ites[6][i]) / x_ites[3][i]);
+      afi = std::atan2(x_ites[4][i] + X1::a * x_ites[6][i], x_ites[3][i]) - uOpts[0][i];
+      ari = std::atan2(x_ites[4][i] - X1::b * x_ites[6][i], x_ites[3][i]);
       Fzfi = (X1::m * X1::G * X1::b - X1::h * Fxi) / X1::L;
       Fzri = (X1::m * X1::G * X1::a + X1::h * Fxi) / X1::L;
       Fyfi = fialaTireModel(afi, X1::Caf, X1::mu, Fxfi, Fzfi);
@@ -207,29 +208,34 @@ bool BicycleCAvoid::optDstb(
     lam_Axi = deriv_ptrs[5][i];
     lam_Ayi = lam_wi / vi;
     lam_norm = std::hypot(lam_Axi, lam_Ayi);
-    desAxi = sign * lam_Axi * maxA / lam_norm;
-    desAyi = sign * lam_Ayi * maxA / lam_norm;
-    maxAxi = std::min(X1::maxAx, X1::maxP2mx / vi);  // max longitudinal acceleration
-    maxAyi = X1::w_per_v_max_lowspeed * vi * vi;     // also bounded by maxA
-    if (desAxi > maxAxi) {
-      if (std::abs(desAyi) < maxAyi) {
-        maxAyi = std::min(std::sqrt(maxA * maxA - maxAxi * maxAxi), maxAyi);
-      }
-      dOpts[0][i] = std::copysign(maxAyi, desAyi) / vi;
-      dOpts[1][i] = maxAxi;
+    if (lam_norm < 0.001) {
+        dOpts[0][i] = 0;
+        dOpts[1][i] = 0;
     } else {
-      if (std::abs(desAyi) > maxAyi) {
-        if (desAxi > 0) {
-          maxAxi = std::min(std::sqrt(maxA * maxA - maxAyi * maxAyi), maxAxi);
-          dOpts[0][i] = std::copysign(maxAyi, desAyi) / vi;
-          dOpts[1][i] = maxAxi;
-        } else {
-          dOpts[0][i] = std::copysign(maxAyi, desAyi) / vi;
-          dOpts[1][i] = -std::sqrt(maxA * maxA - maxAyi * maxAyi);
+      desAxi = sign * lam_Axi * maxA / lam_norm;
+      desAyi = sign * lam_Ayi * maxA / lam_norm;
+      maxAxi = std::min(X1::maxAx, X1::maxP2mx / vi);  // max longitudinal acceleration
+      maxAyi = X1::w_per_v_max_lowspeed * vi * vi;     // also bounded by maxA
+      if (desAxi > maxAxi) {
+        if (std::abs(desAyi) < maxAyi) {
+          maxAyi = std::min(std::sqrt(maxA * maxA - maxAxi * maxAxi), maxAyi);
         }
-      } else {
-        dOpts[0][i] = desAyi / vi;
+        dOpts[0][i] = std::copysign(maxAyi, desAyi) / vi;
         dOpts[1][i] = maxAxi;
+      } else {
+        if (std::abs(desAyi) > maxAyi) {
+          if (desAxi > 0) {
+            maxAxi = std::min(std::sqrt(maxA * maxA - maxAyi * maxAyi), maxAxi);
+            dOpts[0][i] = std::copysign(maxAyi, desAyi) / vi;
+            dOpts[1][i] = maxAxi;
+          } else {
+            dOpts[0][i] = std::copysign(maxAyi, desAyi) / vi;
+            dOpts[1][i] = -std::sqrt(maxA * maxA - maxAyi * maxAyi);
+          }
+        } else {
+          dOpts[0][i] = desAyi / vi;
+          dOpts[1][i] = maxAxi;
+        }
       }
     }
   }
@@ -458,8 +464,8 @@ bool BicycleCAvoid::dynamics_cell_helper(
           Fxi = Fx[0];
         Fxfi = getFxf(Fxi);
         Fxri = getFxr(Fxi);
-        afi = std::atan((Uy[i] + X1::a * r[i]) / Ux[i]) - di;
-        ari = std::atan((Uy[i] - X1::b * r[i]) / Ux[i]);
+        afi = std::atan2(Uy[i] + X1::a * r[i], Ux[i]) - di;
+        ari = std::atan2(Uy[i] - X1::b * r[i], Ux[i]);
         Fzfi = (X1::m * X1::G * X1::b - X1::h * Fxi) / X1::L;
         Fzri = (X1::m * X1::G * X1::a + X1::h * Fxi) / X1::L;
         Fyfi = fialaTireModel(afi, X1::Caf, X1::mu, Fxfi, Fzfi);
@@ -499,8 +505,8 @@ bool BicycleCAvoid::dynamics_cell_helper(
           Fxi = Fx[0];
         Fxfi = getFxf(Fxi);
         Fxri = getFxr(Fxi);
-        afi = std::atan((Uy[i] + X1::a * r[i]) / Ux[i]) - di;
-        ari = std::atan((Uy[i] - X1::b * r[i]) / Ux[i]);
+        afi = std::atan2(Uy[i] + X1::a * r[i], Ux[i]) - di;
+        ari = std::atan2(Uy[i] - X1::b * r[i], Ux[i]);
         Fzfi = (X1::m * X1::G * X1::b - X1::h * Fxi) / X1::L;
         Fzri = (X1::m * X1::G * X1::a + X1::h * Fxi) / X1::L;
         Fyfi = fialaTireModel(afi, X1::Caf, X1::mu, Fxfi, Fzfi);
