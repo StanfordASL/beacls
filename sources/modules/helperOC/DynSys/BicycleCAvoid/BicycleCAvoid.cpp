@@ -550,12 +550,64 @@ bool BicycleCAvoid::dynamics(
       result &= dynamics_cell_helper(
         dx, x_ites[0], x_ites[1], x_ites[2], x_ites[3], x_ites[4], x_ites[5], x_ites[6], us, ds,
         x_sizes[0], x_sizes[1], x_sizes[2], x_sizes[3], x_sizes[4], x_sizes[5], x_sizes[6], dst_target_dim);
-    }
-
-    else {
+    } else {
       std::cerr << "Invalid target dimension for dynamics: " << dst_target_dim << std::endl;
       result = false;
     }
   }
   return result;
 }
+
+#if defined(USER_DEFINED_GPU_DYNSYS_FUNC)
+bool BicycleCAvoid::optCtrl_cuda(
+  std::vector<beacls::UVec>& u_uvecs,
+  const FLOAT_TYPE,
+  const std::vector<beacls::UVec>& x_uvecs,
+  const std::vector<beacls::UVec>& deriv_uvecs,
+  const helperOC::DynSys_UMode_Type uMode
+) const {
+  const helperOC::DynSys_UMode_Type modified_uMode = (uMode == helperOC::DynSys_UMode_Default) ? helperOC::DynSys_UMode_Max : uMode;
+  if (x_uvecs.size() < 7 || x_uvecs[0].empty() || x_uvecs[1].empty() || x_uvecs[2].empty() ||
+      x_uvecs[3].empty() || x_uvecs[4].empty() || x_uvecs[5].empty() || x_uvecs[6].empty() ||
+      deriv_uvecs.size() < 7 || deriv_uvecs[0].empty() || deriv_uvecs[1].empty() || deriv_uvecs[2].empty() ||
+      deriv_uvecs[3].empty() || deriv_uvecs[4].empty() || deriv_uvecs[5].empty() || deriv_uvecs[6].empty()) return false;
+  return BicycleCAvoid_CUDA::optCtrl_execute_cuda(u_uvecs, x_uvecs, deriv_uvecs, modified_uMode);
+}
+bool BicycleCAvoid::optDstb_cuda(
+  std::vector<beacls::UVec>& d_uvecs,
+  const FLOAT_TYPE,
+  const std::vector<beacls::UVec>& x_uvecs,
+  const std::vector<beacls::UVec>& deriv_uvecs,
+  const helperOC::DynSys_DMode_Type dMode
+) const {
+  const helperOC::DynSys_DMode_Type modified_dMode = (dMode == helperOC::DynSys_DMode_Default) ? helperOC::DynSys_DMode_Min : dMode;
+  if (x_uvecs.size() < 7 || x_uvecs[0].empty() || x_uvecs[1].empty() || x_uvecs[2].empty() ||
+      x_uvecs[3].empty() || x_uvecs[4].empty() || x_uvecs[5].empty() || x_uvecs[6].empty() ||
+      deriv_uvecs.size() < 7 || deriv_uvecs[0].empty() || deriv_uvecs[1].empty() || deriv_uvecs[2].empty() ||
+      deriv_uvecs[3].empty() || deriv_uvecs[4].empty() || deriv_uvecs[5].empty() || deriv_uvecs[6].empty()) return false;
+  return BicycleCAvoid_CUDA::optDstb_execute_cuda(d_uvecs, x_uvecs, deriv_uvecs, modified_dMode);
+}
+bool BicycleCAvoid::dynamics_cuda(
+  std::vector<beacls::UVec>& dx_uvecs,
+  const FLOAT_TYPE,
+  const std::vector<beacls::UVec>& x_uvecs,
+  const std::vector<beacls::UVec>& u_uvecs,
+  const std::vector<beacls::UVec>& d_uvecs,
+  const size_t dst_target_dim
+) const {
+  bool result = true;
+  if (dst_target_dim == std::numeric_limits<size_t>::max()) {
+    result &= BicycleCAvoid_CUDA::dynamics_cell_helper_execute_cuda_dimAll(dx_uvecs, x_uvecs, u_uvecs, d_uvecs);
+  }
+  else
+  {
+    if (dst_target_dim < x_uvecs.size()) {
+      return BicycleCAvoid_CUDA::dynamics_cell_helper_execute_cuda(dx_uvecs[dst_target_dim], x_uvecs, u_uvecs, d_uvecs, dst_target_dim);
+    } else {
+      std::cerr << "Invalid target dimension for dynamics: " << dst_target_dim << std::endl;
+      result = false;
+    }
+  }
+  return result;
+}
+#endif /* defined(USER_DEFINED_GPU_DYNSYS_FUNC) */

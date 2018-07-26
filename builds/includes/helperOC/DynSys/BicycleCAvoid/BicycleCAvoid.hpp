@@ -194,39 +194,39 @@ namespace helperOC {
 ///////////////////////////////////////////////////////////////////////////////
 
 
-// #if defined(USER_DEFINED_GPU_DYNSYS_FUNC) && 0
-//         PREFIX_VC_DLL
-//             bool optCtrl_cuda(
-//                 std::vector<beacls::UVec>& u_uvecs,
-//                 const FLOAT_TYPE t,
-//                 const std::vector<beacls::UVec>& x_uvecs,
-//                 const std::vector<beacls::UVec>& deriv_uvecs,
-//                 const helperOC::DynSys_UMode_Type uMode
-//             ) const;
-//         /*
-//         @brief Optimal disturbance function
-//         */
-//         PREFIX_VC_DLL
-//             bool optDstb_cuda(
-//                 std::vector<beacls::UVec>& d_uvecs,
-//                 const FLOAT_TYPE t,
-//                 const std::vector<beacls::UVec>& x_uvecs,
-//                 const std::vector<beacls::UVec>& deriv_uvecs,
-//                 const helperOC::DynSys_DMode_Type dMode
-//             ) const;
-//         /*
-//         @brief Dynamics of the BicycleCAvoid system
-//         */
-//         PREFIX_VC_DLL
-//             bool dynamics_cuda(
-//                 std::vector<beacls::UVec>& dx_uvecs,
-//                 const FLOAT_TYPE t,
-//                 const std::vector<beacls::UVec>& x_uvecs,
-//                 const std::vector<beacls::UVec>& u_uvecs,
-//                 const std::vector<beacls::UVec>& d_uvecs,
-//                 const size_t dst_target_dim
-//             ) const;
-// #endif /* defined(USER_DEFINED_GPU_DYNSYS_FUNC) */
+#if defined(USER_DEFINED_GPU_DYNSYS_FUNC)
+        PREFIX_VC_DLL
+            bool optCtrl_cuda(
+                std::vector<beacls::UVec>& u_uvecs,
+                const FLOAT_TYPE t,
+                const std::vector<beacls::UVec>& x_uvecs,
+                const std::vector<beacls::UVec>& deriv_uvecs,
+                const helperOC::DynSys_UMode_Type uMode
+            ) const;
+        /*
+        @brief Optimal disturbance function
+        */
+        PREFIX_VC_DLL
+            bool optDstb_cuda(
+                std::vector<beacls::UVec>& d_uvecs,
+                const FLOAT_TYPE t,
+                const std::vector<beacls::UVec>& x_uvecs,
+                const std::vector<beacls::UVec>& deriv_uvecs,
+                const helperOC::DynSys_DMode_Type dMode
+            ) const;
+        /*
+        @brief Dynamics of the BicycleCAvoid system
+        */
+        PREFIX_VC_DLL
+            bool dynamics_cuda(
+                std::vector<beacls::UVec>& dx_uvecs,
+                const FLOAT_TYPE t,
+                const std::vector<beacls::UVec>& x_uvecs,
+                const std::vector<beacls::UVec>& u_uvecs,
+                const std::vector<beacls::UVec>& d_uvecs,
+                const size_t dst_target_dim
+            ) const;
+#endif /* defined(USER_DEFINED_GPU_DYNSYS_FUNC) */
 
     private:
         /** @overload
