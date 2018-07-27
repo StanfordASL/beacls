@@ -87,6 +87,76 @@ public:
     }
 };
 
+struct Get_optCtrl_scalars {
+public:
+    const FLOAT_TYPE sign;
+    const FLOAT_TYPE lam_Ux;
+    const FLOAT_TYPE lam_Uy;
+    const FLOAT_TYPE lam_r;
+    Get_optCtrl_scalars(const FLOAT_TYPE sign,
+                        const FLOAT_TYPE lam_Ux,
+                        const FLOAT_TYPE lam_Uy,
+                        const FLOAT_TYPE lam_r) : sign(sign), lam_Ux(lam_Ux), lam_Uy(lam_Uy), lam_r(lam_r) {}
+    template<typename Tuple>
+    __host__ __device__
+    void operator()(Tuple v) const
+    {
+        const FLOAT_TYPE Ux     = thrust::get<2>(v);
+        const FLOAT_TYPE Uy     = thrust::get<3>(v);
+        const FLOAT_TYPE r      = thrust::get<4>(v);
+
+        const FLOAT_TYPE A = lam_Ux / X1::m;                              // Fx coefficient
+        const FLOAT_TYPE B = lam_Uy / X1::m + X1::a * lam_r / X1::Izz;    // Fyf coefficient
+        const FLOAT_TYPE C = lam_Uy / X1::m - X1::b * lam_r / X1::Izz;    // Fyr coefficient
+
+        const FLOAT_TYPE dOpt = ((B >= 0) - (B < 0))*sign*X1::d_max;
+
+        FLOAT_TYPE valueOpt = sign*1e6;
+        FLOAT_TYPE FxOpt = 0;
+
+        for (size_t n = 0; n < 50; ++n) {    // 100% willing to unroll this loop
+            FLOAT_TYPE frac = ((FLOAT_TYPE)n)/((FLOAT_TYPE)(50-1));
+            FLOAT_TYPE Fx = frac * X1::maxFx + X1::minFx * (1.0 - frac);
+
+            FLOAT_TYPE Fxf = (Fx >= 0)*Fx*X1::fwd_frac + (Fx < 0)*Fx*X1::fwb_frac;    // no branches!
+            FLOAT_TYPE Fxr = (Fx >= 0)*Fx*X1::rwd_frac + (Fx < 0)*Fx*X1::rwb_frac;    // no branches!
+            FLOAT_TYPE af  = atan2_float_type<FLOAT_TYPE>(Uy + X1::a * r, Ux) - dOpt;
+            FLOAT_TYPE ar  = atan2_float_type<FLOAT_TYPE>(Uy - X1::b * r, Ux);
+            FLOAT_TYPE Fzf = (X1::m * X1::G * X1::b - X1::h * Fx) / X1::L;
+            FLOAT_TYPE Fzr = (X1::m * X1::G * X1::a + X1::h * Fx) / X1::L;
+            // Fyf (inlined BicycleCAvoid::fialaTireModel(af, X1::Caf, X1::mu, Fxf, Fzf))
+            FLOAT_TYPE a  = af;
+            FLOAT_TYPE Ca = X1::Caf;
+            FLOAT_TYPE mu = X1::mu;
+            FLOAT_TYPE fx = Fxf;    // avoid name conflict with input Fx; damn inlining
+            FLOAT_TYPE Fz = Fzf;
+            FLOAT_TYPE Fmax = mu * Fz;
+            FLOAT_TYPE Fymax = sqrt_float_type<FLOAT_TYPE>((abs_float_type<FLOAT_TYPE>(fx) < Fmax)*(Fmax * Fmax - fx * fx));    // no branches!
+            FLOAT_TYPE tana  = tan_float_type<FLOAT_TYPE>(a);
+            FLOAT_TYPE ratio = abs_float_type<FLOAT_TYPE>(tana * Ca / (3 * (Fymax > 0) * Fymax + (Fymax <= 0))) + (Fymax <= 0); // ratio >= 1 if Fymax <= 0
+            FLOAT_TYPE Fyf = (ratio < 1)*(-Ca * tana * (1 - ratio + ratio * ratio / 3)) + (ratio >= 1)*(-copysign_float_type<FLOAT_TYPE>(Fymax, tana));
+            // Fyr (inlined BicycleCAvoid::fialaTireModel(ar, X1::Car, X1::mu, Fxr, Fzr))
+            a  = ar;
+            Ca = X1::Car;
+            mu = X1::mu;
+            fx = Fxr;
+            Fz = Fzr;
+            Fmax = mu*Fz;
+            Fymax = sqrt_float_type<FLOAT_TYPE>((abs_float_type<FLOAT_TYPE>(fx) < Fmax)*(Fmax * Fmax - fx * fx));    // no branches!
+            tana  = tan_float_type<FLOAT_TYPE>(a);
+            ratio = abs_float_type<FLOAT_TYPE>(tana * Ca / (3 * (Fymax > 0) * Fymax + (Fymax <= 0))) + (Fymax <= 0); // ratio >= 1 if Fymax <= 0
+            FLOAT_TYPE Fyr = (ratio < 1)*(-Ca * tana * (1 - ratio + ratio * ratio / 3)) + (ratio >= 1)*(-copysign_float_type<FLOAT_TYPE>(Fymax, tana));
+            FLOAT_TYPE value = A * Fx + B * Fyf + C * Fyr;
+            if ( ((sign > 0) && (value > valueOpt)) || ((sign < 0) && (value < valueOpt)) ) {
+                FxOpt = Fx;
+                valueOpt = value;
+            }
+        }
+        thrust::get<0>(v) = dOpt;
+        thrust::get<1>(v) = FxOpt;
+    }
+};
+
 bool optCtrl_execute_cuda(
     std::vector<beacls::UVec>& u_uvecs,
     const std::vector<beacls::UVec>& x_uvecs,
@@ -96,9 +166,9 @@ bool optCtrl_execute_cuda(
     bool result = true;
     beacls::UVec& d_uvec            = u_uvecs[0];
     beacls::UVec& Fx_uvec           = u_uvecs[1];
-    const beacls::UVec& Ux_uvec     = x_uvecs[3];        // a bit worried about the size of this uvec; TODO assert?
-    const beacls::UVec& Uy_uvec     = x_uvecs[4];        // a bit worried about the size of this uvec; TODO assert?
-    const beacls::UVec& r_uvec      = x_uvecs[6];        // a bit worried about the size of this uvec; TODO assert?
+    const beacls::UVec& Ux_uvec     = x_uvecs[3];
+    const beacls::UVec& Uy_uvec     = x_uvecs[4];
+    const beacls::UVec& r_uvec      = x_uvecs[6];
     const beacls::UVec& lam_Ux_uvec = deriv_uvecs[3];
     const beacls::UVec& lam_Uy_uvec = deriv_uvecs[4];
     const beacls::UVec& lam_r_uvec  = deriv_uvecs[6];
@@ -115,19 +185,20 @@ bool optCtrl_execute_cuda(
     const FLOAT_TYPE* lam_Uy_ptr = beacls::UVec_<FLOAT_TYPE>(lam_Uy_uvec).ptr();
     const FLOAT_TYPE* lam_r_ptr  = beacls::UVec_<FLOAT_TYPE>(lam_r_uvec).ptr();
 
+    thrust::device_ptr<FLOAT_TYPE> d_dev_ptr            = thrust::device_pointer_cast(d_ptr);
+    thrust::device_ptr<FLOAT_TYPE> Fx_dev_ptr           = thrust::device_pointer_cast(Fx_ptr);
+    cudaStream_t d_stream = beacls::get_stream(d_uvec);
+    Fx_uvec.set_cudaStream(d_uvec.get_cudaStream());
+    thrust::device_ptr<const FLOAT_TYPE> Ux_dev_ptr     = thrust::device_pointer_cast(Ux_ptr);
+    thrust::device_ptr<const FLOAT_TYPE> Uy_dev_ptr     = thrust::device_pointer_cast(Uy_ptr);
+    thrust::device_ptr<const FLOAT_TYPE> r_dev_ptr      = thrust::device_pointer_cast(r_ptr);
+
     if ((uMode == helperOC::DynSys_UMode_Max) || (uMode == helperOC::DynSys_UMode_Min)) {
         const FLOAT_TYPE sign = (uMode == helperOC::DynSys_UMode_Max) ? 1 : -1;
         if (beacls::is_cuda(lam_Ux_uvec) && beacls::is_cuda(lam_Uy_uvec) && beacls::is_cuda(lam_r_uvec)) {
-            thrust::device_ptr<FLOAT_TYPE> d_dev_ptr            = thrust::device_pointer_cast(d_ptr);
-            thrust::device_ptr<FLOAT_TYPE> Fx_dev_ptr           = thrust::device_pointer_cast(Fx_ptr);
-            thrust::device_ptr<const FLOAT_TYPE> Ux_dev_ptr     = thrust::device_pointer_cast(Ux_ptr);
-            thrust::device_ptr<const FLOAT_TYPE> Uy_dev_ptr     = thrust::device_pointer_cast(Uy_ptr);
-            thrust::device_ptr<const FLOAT_TYPE> r_dev_ptr      = thrust::device_pointer_cast(r_ptr);
             thrust::device_ptr<const FLOAT_TYPE> lam_Ux_dev_ptr = thrust::device_pointer_cast(lam_Ux_ptr);
             thrust::device_ptr<const FLOAT_TYPE> lam_Uy_dev_ptr = thrust::device_pointer_cast(lam_Uy_ptr);
             thrust::device_ptr<const FLOAT_TYPE> lam_r_dev_ptr  = thrust::device_pointer_cast(lam_r_ptr);
-            cudaStream_t d_stream = beacls::get_stream(d_uvec);
-            Fx_uvec.set_cudaStream(d_uvec.get_cudaStream());
             auto Tuple = thrust::make_tuple(d_dev_ptr,
                                             Fx_dev_ptr,
                                             Ux_dev_ptr,
@@ -139,62 +210,16 @@ bool optCtrl_execute_cuda(
             auto Iterator = thrust::make_zip_iterator(Tuple);
             thrust::for_each(thrust::cuda::par.on(d_stream), Iterator, Iterator + d_uvec.size(), Get_optCtrl(sign));
         } else {
-            const FLOAT_TYPE Ux     = Ux_ptr[0];
-            const FLOAT_TYPE Uy     = Uy_ptr[0];
-            const FLOAT_TYPE r      = r_ptr[0];
             const FLOAT_TYPE lam_Ux = lam_Ux_ptr[0];
             const FLOAT_TYPE lam_Uy = lam_Uy_ptr[0];
             const FLOAT_TYPE lam_r  = lam_r_ptr[0];
-
-            const FLOAT_TYPE A = lam_Ux / X1::m;                              // Fx coefficient
-            const FLOAT_TYPE B = lam_Uy / X1::m + X1::a * lam_r / X1::Izz;    // Fyf coefficient
-            const FLOAT_TYPE C = lam_Uy / X1::m - X1::b * lam_r / X1::Izz;    // Fyr coefficient
-
-            const FLOAT_TYPE dOpt = ((B >= 0) - (B < 0))*sign*X1::d_max;
-
-            FLOAT_TYPE valueOpt = sign*1e6;
-            FLOAT_TYPE FxOpt = 0;
-
-            for (size_t n = 0; n < 50; ++n) {    // 100% willing to unroll this loop
-                FLOAT_TYPE frac = ((FLOAT_TYPE)n)/((FLOAT_TYPE)(50-1));
-                FLOAT_TYPE Fx = frac * X1::maxFx + X1::minFx * (1.0 - frac);
-
-                FLOAT_TYPE Fxf = (Fx >= 0)*Fx*X1::fwd_frac + (Fx < 0)*Fx*X1::fwb_frac;    // no branches!
-                FLOAT_TYPE Fxr = (Fx >= 0)*Fx*X1::rwd_frac + (Fx < 0)*Fx*X1::rwb_frac;    // no branches!
-                FLOAT_TYPE af  = atan2_float_type<FLOAT_TYPE>(Uy + X1::a * r, Ux) - dOpt;
-                FLOAT_TYPE ar  = atan2_float_type<FLOAT_TYPE>(Uy - X1::b * r, Ux);
-                FLOAT_TYPE Fzf = (X1::m * X1::G * X1::b - X1::h * Fx) / X1::L;
-                FLOAT_TYPE Fzr = (X1::m * X1::G * X1::a + X1::h * Fx) / X1::L;
-                // Fyf (inlined BicycleCAvoid::fialaTireModel(af, X1::Caf, X1::mu, Fxf, Fzf))
-                FLOAT_TYPE a  = af;
-                FLOAT_TYPE Ca = X1::Caf;
-                FLOAT_TYPE mu = X1::mu;
-                FLOAT_TYPE fx = Fxf;    // avoid name conflict with input Fx; damn inlining
-                FLOAT_TYPE Fz = Fzf;
-                FLOAT_TYPE Fmax = mu * Fz;
-                FLOAT_TYPE Fymax = sqrt_float_type<FLOAT_TYPE>((abs_float_type<FLOAT_TYPE>(fx) < Fmax)*(Fmax * Fmax - fx * fx));    // no branches!
-                FLOAT_TYPE tana  = tan_float_type<FLOAT_TYPE>(a);
-                FLOAT_TYPE ratio = abs_float_type<FLOAT_TYPE>(tana * Ca / (3 * (Fymax > 0) * Fymax + (Fymax <= 0))) + (Fymax <= 0); // ratio >= 1 if Fymax <= 0
-                FLOAT_TYPE Fyf = (ratio < 1)*(-Ca * tana * (1 - ratio + ratio * ratio / 3)) + (ratio >= 1)*(-copysign_float_type<FLOAT_TYPE>(Fymax, tana));
-                // Fyr (inlined BicycleCAvoid::fialaTireModel(ar, X1::Car, X1::mu, Fxr, Fzr))
-                a  = ar;
-                Ca = X1::Car;
-                mu = X1::mu;
-                fx = Fxr;
-                Fz = Fzr;
-                Fmax = mu*Fz;
-                Fymax = sqrt_float_type<FLOAT_TYPE>((abs_float_type<FLOAT_TYPE>(fx) < Fmax)*(Fmax * Fmax - fx * fx));    // no branches!
-                tana  = tan_float_type<FLOAT_TYPE>(a);
-                ratio = abs_float_type<FLOAT_TYPE>(tana * Ca / (3 * (Fymax > 0) * Fymax + (Fymax <= 0))) + (Fymax <= 0); // ratio >= 1 if Fymax <= 0
-                FLOAT_TYPE Fyr = (ratio < 1)*(-Ca * tana * (1 - ratio + ratio * ratio / 3)) + (ratio >= 1)*(-copysign_float_type<FLOAT_TYPE>(Fymax, tana));
-                FLOAT_TYPE value = A * Fx + B * Fyf + C * Fyr;
-                if ( ((sign > 0) && (value > valueOpt)) || ((sign < 0) && (value < valueOpt)) ) {
-                    FxOpt = Fx;
-                    valueOpt = value;
-                }
-            }
-            d_ptr[0]  = dOpt;
-            Fx_ptr[0] = FxOpt;
+            auto Tuple = thrust::make_tuple(d_dev_ptr,
+                                            Fx_dev_ptr,
+                                            Ux_dev_ptr,
+                                            Uy_dev_ptr,
+                                            r_dev_ptr);
+            auto Iterator = thrust::make_zip_iterator(Tuple);
+            thrust::for_each(thrust::cuda::par.on(d_stream), Iterator, Iterator + d_uvec.size(), Get_optCtrl_scalars(sign, lam_Ux, lam_Uy, lam_r));
         }
     } else {
         std::cerr << "Unknown uMode!: " << uMode << std::endl;
@@ -219,6 +244,7 @@ public:
         FLOAT_TYPE maxA = X1::maxA_approx;
         FLOAT_TYPE X1maxAx = X1::maxAx;    // not sure why I have to do this??
         FLOAT_TYPE X1maxP2mx = X1::maxP2mx;    // not sure why I have to do this??
+        FLOAT_TYPE X1w_per_v_max_lowspeed = X1::w_per_v_max_lowspeed;    // not sure why I have to do this??
         if (lam_norm < 0.001) {    // fuk tuples, i.e., I ain't debranching this
             thrust::get<0>(v) = 0;
             thrust::get<1>(v) = 0;
@@ -226,7 +252,59 @@ public:
             FLOAT_TYPE desAx = sign * lam_Ax * maxA / lam_norm;
             FLOAT_TYPE desAy = sign * lam_Ay * maxA / lam_norm;
             FLOAT_TYPE maxAx = min_float_type<FLOAT_TYPE>(X1maxAx, X1maxP2mx / V);  // max longitudinal acceleration
-            FLOAT_TYPE maxAy = X1::w_per_v_max_lowspeed * V * V;                        // also bounded by maxA
+            FLOAT_TYPE maxAy = X1w_per_v_max_lowspeed * V * V;                        // also bounded by maxA
+            if (desAx > maxAx) {
+                if (abs_float_type<FLOAT_TYPE>(desAy) < maxAy) {
+                    maxAy = min_float_type<FLOAT_TYPE>(sqrt_float_type<FLOAT_TYPE>(maxA * maxA - maxAx * maxAx), maxAy);
+                }
+                thrust::get<0>(v) = copysign_float_type<FLOAT_TYPE>(maxAy, desAy) / V;
+                thrust::get<1>(v) = maxAx;
+            } else {
+                if (abs_float_type<FLOAT_TYPE>(desAy) > maxAy) {
+                    if (desAx > 0) {
+                        maxAx = min_float_type<FLOAT_TYPE>(sqrt_float_type<FLOAT_TYPE>(maxA * maxA - maxAy * maxAy), maxAx);
+                        thrust::get<0>(v) = copysign_float_type<FLOAT_TYPE>(maxAy, desAy) / V;
+                        thrust::get<1>(v) = maxAx;
+                    } else {
+                        thrust::get<0>(v) = copysign_float_type<FLOAT_TYPE>(maxAy, desAy) / V;
+                        thrust::get<1>(v) = -sqrt_float_type<FLOAT_TYPE>(maxA * maxA - maxAy * maxAy);
+                    }
+                } else {
+                    thrust::get<0>(v) = desAy / V;
+                    thrust::get<1>(v) = maxAx;
+                }
+            }
+        }
+    }
+};
+
+struct Get_optDstb_scalars {
+public:
+    const FLOAT_TYPE sign;
+    const FLOAT_TYPE lam_w;
+    const FLOAT_TYPE lam_Ax;
+    Get_optDstb_scalars(const FLOAT_TYPE sign,
+                        const FLOAT_TYPE lam_w,
+                        const FLOAT_TYPE lam_Ax) : sign(sign), lam_w(lam_w), lam_Ax(lam_Ax) {}
+    template<typename Tuple>
+    __host__ __device__
+    void operator()(Tuple v) const
+    {
+        const FLOAT_TYPE V      = thrust::get<2>(v);
+        FLOAT_TYPE lam_Ay = lam_w / V;
+        FLOAT_TYPE lam_norm = hypot_float_type<FLOAT_TYPE>(lam_Ax, lam_Ay);
+        FLOAT_TYPE maxA = X1::maxA_approx;
+        FLOAT_TYPE X1maxAx = X1::maxAx;    // not sure why I have to do this??
+        FLOAT_TYPE X1maxP2mx = X1::maxP2mx;    // not sure why I have to do this??
+        FLOAT_TYPE X1w_per_v_max_lowspeed = X1::w_per_v_max_lowspeed;    // not sure why I have to do this??
+        if (lam_norm < 0.001) {    // fuk tuples, i.e., I ain't debranching this
+            thrust::get<0>(v) = 0;
+            thrust::get<1>(v) = 0;
+        } else {
+            FLOAT_TYPE desAx = sign * lam_Ax * maxA / lam_norm;
+            FLOAT_TYPE desAy = sign * lam_Ay * maxA / lam_norm;
+            FLOAT_TYPE maxAx = min_float_type<FLOAT_TYPE>(X1maxAx, X1maxP2mx / V);  // max longitudinal acceleration
+            FLOAT_TYPE maxAy = X1w_per_v_max_lowspeed * V * V;                        // also bounded by maxA
             if (desAx > maxAx) {
                 if (abs_float_type<FLOAT_TYPE>(desAy) < maxAy) {
                     maxAy = min_float_type<FLOAT_TYPE>(sqrt_float_type<FLOAT_TYPE>(maxA * maxA - maxAx * maxAx), maxAy);
@@ -274,16 +352,17 @@ bool optDstb_execute_cuda(
     const FLOAT_TYPE* lam_w_ptr  = beacls::UVec_<FLOAT_TYPE>(lam_w_uvec).ptr();
     const FLOAT_TYPE* lam_Ax_ptr = beacls::UVec_<FLOAT_TYPE>(lam_Ax_uvec).ptr();
 
+    thrust::device_ptr<FLOAT_TYPE> w_dev_ptr       = thrust::device_pointer_cast(w_ptr);
+    thrust::device_ptr<FLOAT_TYPE> a_dev_ptr       = thrust::device_pointer_cast(a_ptr);
+    cudaStream_t d_stream = beacls::get_stream(w_uvec);
+    a_uvec.set_cudaStream(w_uvec.get_cudaStream());
+    thrust::device_ptr<const FLOAT_TYPE> V_dev_ptr = thrust::device_pointer_cast(V_ptr);
+
     if ((dMode == helperOC::DynSys_DMode_Max) || (dMode == helperOC::DynSys_DMode_Min)) {
         const FLOAT_TYPE sign = (dMode == helperOC::DynSys_DMode_Max) ? 1 : -1;
         if (beacls::is_cuda(lam_w_uvec) && beacls::is_cuda(lam_Ax_uvec)) {
-            thrust::device_ptr<FLOAT_TYPE> w_dev_ptr            = thrust::device_pointer_cast(w_ptr);
-            thrust::device_ptr<FLOAT_TYPE> a_dev_ptr            = thrust::device_pointer_cast(a_ptr);
-            thrust::device_ptr<const FLOAT_TYPE> V_dev_ptr      = thrust::device_pointer_cast(V_ptr);
             thrust::device_ptr<const FLOAT_TYPE> lam_w_dev_ptr  = thrust::device_pointer_cast(lam_w_ptr);
             thrust::device_ptr<const FLOAT_TYPE> lam_Ax_dev_ptr = thrust::device_pointer_cast(lam_Ax_ptr);
-            cudaStream_t d_stream = beacls::get_stream(w_uvec);
-            a_uvec.set_cudaStream(w_uvec.get_cudaStream());
             auto Tuple = thrust::make_tuple(w_dev_ptr,
                                             a_dev_ptr,
                                             V_dev_ptr,
@@ -292,42 +371,13 @@ bool optDstb_execute_cuda(
             auto Iterator = thrust::make_zip_iterator(Tuple);
             thrust::for_each(thrust::cuda::par.on(d_stream), Iterator, Iterator + w_uvec.size(), Get_optDstb(sign));
         } else {
-            const FLOAT_TYPE V      = V_ptr[0];
             const FLOAT_TYPE lam_w  = lam_w_ptr[0];
             const FLOAT_TYPE lam_Ax = lam_Ax_ptr[0];
-            FLOAT_TYPE lam_Ay = lam_w / V;
-            FLOAT_TYPE lam_norm = hypot_float_type<FLOAT_TYPE>(lam_Ax, lam_Ay);
-            FLOAT_TYPE maxA = X1::maxA_approx;
-            if (lam_norm < 0.001) {    // fuk tuples, i.e., I ain't debranching this
-                w_ptr[0] = 0;
-                a_ptr[0] = 0;
-            } else {
-                FLOAT_TYPE desAx = sign * lam_Ax * maxA / lam_norm;
-                FLOAT_TYPE desAy = sign * lam_Ay * maxA / lam_norm;
-                FLOAT_TYPE maxAx = min_float_type<FLOAT_TYPE>(X1::maxAx, X1::maxP2mx / V);  // max longitudinal acceleration
-                FLOAT_TYPE maxAy = X1::w_per_v_max_lowspeed * V * V;                        // also bounded by maxA
-                if (desAx > maxAx) {
-                    if (abs_float_type<FLOAT_TYPE>(desAy) < maxAy) {
-                        maxAy = min_float_type<FLOAT_TYPE>(sqrt_float_type<FLOAT_TYPE>(maxA * maxA - maxAx * maxAx), maxAy);
-                    }
-                    w_ptr[0] = copysign_float_type<FLOAT_TYPE>(maxAy, desAy) / V;
-                    a_ptr[0] = maxAx;
-                } else {
-                    if (abs_float_type<FLOAT_TYPE>(desAy) > maxAy) {
-                        if (desAx > 0) {
-                            maxAx = min_float_type<FLOAT_TYPE>(sqrt_float_type<FLOAT_TYPE>(maxA * maxA - maxAy * maxAy), maxAx);
-                            w_ptr[0] = copysign_float_type<FLOAT_TYPE>(maxAy, desAy) / V;
-                            a_ptr[0] = maxAx;
-                        } else {
-                            w_ptr[0] = copysign_float_type<FLOAT_TYPE>(maxAy, desAy) / V;
-                            a_ptr[0] = -sqrt_float_type<FLOAT_TYPE>(maxA * maxA - maxAy * maxAy);
-                        }
-                    } else {
-                        w_ptr[0] = desAy / V;
-                        a_ptr[0] = maxAx;
-                    }
-                }
-            }
+            auto Tuple = thrust::make_tuple(w_dev_ptr,
+                                            a_dev_ptr,
+                                            V_dev_ptr);
+            auto Iterator = thrust::make_zip_iterator(Tuple);
+            thrust::for_each(thrust::cuda::par.on(d_stream), Iterator, Iterator + w_uvec.size(), Get_optDstb_scalars(sign, lam_w, lam_Ax));
         }
     } else {
         std::cerr << "Unknown dMode!: " << dMode << std::endl;
