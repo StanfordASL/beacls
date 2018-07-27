@@ -49,6 +49,7 @@
 #include <algorithm>
 #include <typeinfo>
 #include <levelset/Grids/HJI_Grid.hpp>
+#include "BicycleCAvoid_cuda.hpp"
 using namespace helperOC;
 
 
