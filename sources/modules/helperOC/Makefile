@@ -210,7 +210,8 @@ CUDA_SOURCES = ComputeGradients_OneSlice_cuda.cu \
 	KinVehicleND_cuda.cu \
 	Plane_cuda.cu \
 	PlaneCAvoid_cuda.cu \
-	Quad4D_cuda.cu
+	Quad4D_cuda.cu \
+	BicycleCAvoid_cuda.cu
 
 OBJECTS  = $(SOURCES:.cpp=.o)
 
