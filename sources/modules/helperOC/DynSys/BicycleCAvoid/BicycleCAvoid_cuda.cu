@@ -20,47 +20,68 @@
 #if defined(USER_DEFINED_GPU_DYNSYS_FUNC)
 namespace BicycleCAvoid_CUDA {
 
-struct Get_optCtrl_dim0dim1_D {
+struct Get_optCtrl {
 public:
-    const FLOAT_TYPE vrangeA0;
-    const FLOAT_TYPE vrangeA1;
-    const FLOAT_TYPE wMax;
-    Get_optCtrl_dim0dim1_D(
-        const FLOAT_TYPE vrangeA0,
-        const FLOAT_TYPE vrangeA1,
-        const FLOAT_TYPE wMax) :
-        vrangeA0(vrangeA0),
-        vrangeA1(vrangeA1),
-        wMax(wMax) {}
+    const FLOAT_TYPE sign;
+    Get_optCtrl(const FLOAT_TYPE sign) : sign(sign) {}
     template<typename Tuple>
     __host__ __device__
     void operator()(Tuple v) const
     {
-        const FLOAT_TYPE y0 = thrust::get<2>(v);
-        const FLOAT_TYPE y1 = thrust::get<3>(v);
-        const FLOAT_TYPE deriv0 = thrust::get<4>(v);
-        const FLOAT_TYPE deriv1 = thrust::get<5>(v);
-        const FLOAT_TYPE deriv2 = thrust::get<6>(v);
-        const FLOAT_TYPE det0 = -deriv0;
-        const FLOAT_TYPE det1 = deriv0 * y1 - deriv1 * y0 - deriv2;
-        thrust::get<0>(v) = (det0 >= 0) ? vrangeA1 : vrangeA0;
-        thrust::get<1>(v) = (det1 >= 0) ? wMax : -wMax;
-    }
-};
+        const FLOAT_TYPE Ux     = thrust::get<2>(v);
+        const FLOAT_TYPE Uy     = thrust::get<3>(v);
+        const FLOAT_TYPE r      = thrust::get<4>(v);
+        const FLOAT_TYPE lam_Ux = thrust::get<5>(v);
+        const FLOAT_TYPE lam_Uy = thrust::get<6>(v);
+        const FLOAT_TYPE lam_r  = thrust::get<7>(v);
 
-struct Get_optCtrl_dim1_d {
-public:
-    const FLOAT_TYPE wMax;
-    const FLOAT_TYPE d0;
-    const FLOAT_TYPE d1;
-    const FLOAT_TYPE d2;
-    Get_optCtrl_dim1_d(const FLOAT_TYPE wMax, const FLOAT_TYPE d0, const FLOAT_TYPE d1, const FLOAT_TYPE d2) :
-        wMax(wMax), d0(d0), d1(d1), d2(d2) {}
-    __host__ __device__
-    FLOAT_TYPE operator()(const FLOAT_TYPE y0, const FLOAT_TYPE y1) const
-    {
-        const FLOAT_TYPE det1 = d0 * y1 - d1 * y0 - d2;
-        return (det1 >= 0) ? wMax : -wMax;
+        const FLOAT_TYPE A = lam_Ux / X1::m;                              // Fx coefficient
+        const FLOAT_TYPE B = lam_Uy / X1::m + X1::a * lam_r / X1::Izz;    // Fyf coefficient
+        const FLOAT_TYPE C = lam_Uy / X1::m - X1::b * lam_r / X1::Izz;    // Fyr coefficient
+
+        const FLOAT_TYPE dOpt = ((B >= 0) - (B < 0))*sign*X1::d_max;
+
+        FLOAT_TYPE valueOpt = sign*1e6;
+        FLOAT_TYPE FxOpt = 0;
+
+        for (size_t n = 0; n < 50; ++n) {    // 100% willing to unroll this loop
+            FLOAT_TYPE frac = ((FLOAT_TYPE)n)/((FLOAT_TYPE)(50-1));
+            FLOAT_TYPE Fx = frac * X1::maxFx + X1::minFx * (1.0 - frac);
+
+            FLOAT_TYPE Fxf = (Fx >= 0)*Fx*X1::fwd_frac + (Fx < 0)*Fx*X1::fwb_frac;    // no branches!
+            FLOAT_TYPE Fxr = (Fx >= 0)*Fx*X1::rwd_frac + (Fx < 0)*Fx*X1::rwb_frac;    // no branches!
+            FLOAT_TYPE af  = atan2_float_type<FLOAT_TYPE>(Uy + X1::a * r, Ux) - d;
+            FLOAT_TYPE ar  = atan2_float_type<FLOAT_TYPE>(Uy - X1::b * r, Ux);
+            FLOAT_TYPE Fzf = (X1::m * X1::G * X1::b - X1::h * Fx) / X1::L;
+            FLOAT_TYPE Fzr = (X1::m * X1::G * X1::a + X1::h * Fx) / X1::L;
+            // Fyf (inlined BicycleCAvoid::fialaTireModel(af, X1::Caf, X1::mu, Fxf, Fzf))
+            FLOAT_TYPE a  = af;
+            FLOAT_TYPE Ca = X1::Caf;
+            FLOAT_TYPE mu = X1::mu;
+            FLOAT_TYPE fx = Fxf;    // avoid name conflict with input Fx; damn inlining
+            FLOAT_TYPE Fz = Fzf;
+            FLOAT_TYPE Fymax = sqrt_float_type<FLOAT_TYPE>((abs_float_type<FLOAT_TYPE>(fx) < Fmax)*(Fmax * Fmax - fx * fx));    // no branches!
+            FLOAT_TYPE tana  = tan_float_type<FLOAT_TYPE>(a);
+            FLOAT_TYPE ratio = abs_float_type<FLOAT_TYPE>(tana * Ca / (3 * (Fymax > 0) * Fymax + (Fymax <= 0))) + (Fymax <= 0); // ratio >= 1 if Fymax <= 0
+            FLOAT_TYPE Fyf = (ratio < 1)*(-Ca * tana * (1 - ratio + ratio * ratio / 3)) + (ratio >= 1)*(-copysign_float_type<FLOAT_TYPE>(Fymax, tana));
+            // Fyr (inlined BicycleCAvoid::fialaTireModel(ar, X1::Car, X1::mu, Fxr, Fzr))
+            a  = ar;
+            Ca = X1::Car;
+            mu = X1::mu;
+            fx = Fxr;
+            Fz = Fzr;
+            Fymax = sqrt_float_type<FLOAT_TYPE>((abs_float_type<FLOAT_TYPE>(fx) < Fmax)*(Fmax * Fmax - fx * fx));    // no branches!
+            tana  = tan_float_type<FLOAT_TYPE>(a);
+            ratio = abs_float_type<FLOAT_TYPE>(tana * Ca / (3 * (Fymax > 0) * Fymax + (Fymax <= 0))) + (Fymax <= 0); // ratio >= 1 if Fymax <= 0
+            FLOAT_TYPE Fyr = (ratio < 1)*(-Ca * tana * (1 - ratio + ratio * ratio / 3)) + (ratio >= 1)*(-copysign_float_type<FLOAT_TYPE>(Fymax, tana));
+            value = A * Fx + B * Fyf + C * Fyr;
+            if ( ((sign > 0) && (value > valueOpt)) || ((sign < 0) && (value < valueOpt)) ) {
+                FxOpt = Fxi;
+                valueOpt = value;
+            }
+        }
+        thrust::get<0>(v) = dOpt;
+        thrust::get<1>(v) = FxOpt;
     }
 };
 
@@ -68,211 +89,248 @@ bool optCtrl_execute_cuda(
     std::vector<beacls::UVec>& u_uvecs,
     const std::vector<beacls::UVec>& x_uvecs,
     const std::vector<beacls::UVec>& deriv_uvecs,
-    const FLOAT_TYPE wMaxA,
-    const std::vector<FLOAT_TYPE>& vRangeA,
     const helperOC::DynSys_UMode_Type uMode
-)
-{
+) {
     bool result = true;
-    beacls::reallocateAsSrc(u_uvecs[0], deriv_uvecs[0]);
-    beacls::reallocateAsSrc(u_uvecs[1], x_uvecs[0]);
-    FLOAT_TYPE* uOpt0_ptr = beacls::UVec_<FLOAT_TYPE>(u_uvecs[0]).ptr();
-    FLOAT_TYPE* uOpt1_ptr = beacls::UVec_<FLOAT_TYPE>(u_uvecs[1]).ptr();
-    const FLOAT_TYPE* y0_ptr = beacls::UVec_<FLOAT_TYPE>(x_uvecs[0]).ptr();
-    const FLOAT_TYPE* y1_ptr = beacls::UVec_<FLOAT_TYPE>(x_uvecs[1]).ptr();
-    const FLOAT_TYPE* deriv0_ptr = beacls::UVec_<FLOAT_TYPE>(deriv_uvecs[0]).ptr();
-    const FLOAT_TYPE* deriv1_ptr = beacls::UVec_<FLOAT_TYPE>(deriv_uvecs[1]).ptr();
-    const FLOAT_TYPE* deriv2_ptr = beacls::UVec_<FLOAT_TYPE>(deriv_uvecs[2]).ptr();
-    thrust::device_ptr<const FLOAT_TYPE> y0_dev_ptr = thrust::device_pointer_cast(y0_ptr);
-    thrust::device_ptr<const FLOAT_TYPE> y1_dev_ptr = thrust::device_pointer_cast(y1_ptr);
-    const FLOAT_TYPE vRangeA0 = vRangeA[0];
-    const FLOAT_TYPE vRangeA1 = vRangeA[1];
+    beacls::UVec& d_uvec            = u_uvecs[0];
+    beacls::UVec& Fx_uvec           = u_uvecs[1];
+    const beacls::UVec& Ux_uvec     = x_uvecs[3];        // a bit worried about the size of this uvec; TODO assert?
+    const beacls::UVec& Uy_uvec     = x_uvecs[4];        // a bit worried about the size of this uvec; TODO assert?
+    const beacls::UVec& r_uvec      = x_uvecs[6];        // a bit worried about the size of this uvec; TODO assert?
+    const beacls::UVec& lam_Ux_uvec = deriv_uvecs[3];
+    const beacls::UVec& lam_Uy_uvec = deriv_uvecs[4];
+    const beacls::UVec& lam_r_uvec  = deriv_uvecs[6];
+
+    beacls::reallocateAsSrc(d_uvec , deriv_uvecs[0]);
+    beacls::reallocateAsSrc(Fx_uvec, deriv_uvecs[0]);
+
+    FLOAT_TYPE* d_ptr            = beacls::UVec_<FLOAT_TYPE>(d_uvec).ptr();
+    FLOAT_TYPE* Fx_ptr           = beacls::UVec_<FLOAT_TYPE>(Fx_uvec).ptr();
+    const FLOAT_TYPE* Ux_ptr     = beacls::UVec_<FLOAT_TYPE>(Ux_uvec).ptr();
+    const FLOAT_TYPE* Uy_ptr     = beacls::UVec_<FLOAT_TYPE>(Uy_uvec).ptr();
+    const FLOAT_TYPE* r_ptr      = beacls::UVec_<FLOAT_TYPE>(r_uvec).ptr();
+    const FLOAT_TYPE* lam_Ux_ptr = beacls::UVec_<FLOAT_TYPE>(lam_Ux_uvec).ptr();
+    const FLOAT_TYPE* lam_Uy_ptr = beacls::UVec_<FLOAT_TYPE>(lam_Uy_uvec).ptr();
+    const FLOAT_TYPE* lam_r_ptr  = beacls::UVec_<FLOAT_TYPE>(lam_r_uvec).ptr();
+
     if ((uMode == helperOC::DynSys_UMode_Max) || (uMode == helperOC::DynSys_UMode_Min)) {
-        const FLOAT_TYPE moded_wMaxA = (uMode == helperOC::DynSys_UMode_Max) ? wMaxA : -wMaxA;
-        const FLOAT_TYPE moded_vRangeA0 = (uMode == helperOC::DynSys_UMode_Max) ? vRangeA0 : vRangeA1;
-        const FLOAT_TYPE moded_vRangeA1 = (uMode == helperOC::DynSys_UMode_Max) ? vRangeA1 : vRangeA0;
-        cudaStream_t u_stream = beacls::get_stream(u_uvecs[1]);
-        thrust::device_ptr<FLOAT_TYPE> uOpt1_dev_ptr = thrust::device_pointer_cast(uOpt1_ptr);
-        if(is_cuda(deriv_uvecs[0]) && is_cuda(deriv_uvecs[1]) && is_cuda(deriv_uvecs[2])){
-            thrust::device_ptr<FLOAT_TYPE> uOpt0_dev_ptr = thrust::device_pointer_cast(uOpt0_ptr);
-            u_uvecs[0].set_cudaStream(u_uvecs[1].get_cudaStream());
-            thrust::device_ptr<const FLOAT_TYPE> deriv0_dev_ptr = thrust::device_pointer_cast(deriv0_ptr);
-            thrust::device_ptr<const FLOAT_TYPE> deriv1_dev_ptr = thrust::device_pointer_cast(deriv1_ptr);
-            thrust::device_ptr<const FLOAT_TYPE> deriv2_dev_ptr = thrust::device_pointer_cast(deriv2_ptr);
-            auto src_dst_Tuple = thrust::make_tuple(uOpt0_dev_ptr, uOpt1_dev_ptr,
-                y0_dev_ptr, y1_dev_ptr, deriv0_dev_ptr, deriv1_dev_ptr, deriv2_dev_ptr);
-            auto src_dst_Iterator = thrust::make_zip_iterator(src_dst_Tuple);
-            thrust::for_each(thrust::cuda::par.on(u_stream),
-                src_dst_Iterator, src_dst_Iterator + x_uvecs[0].size(),
-                Get_optCtrl_dim0dim1_D(moded_vRangeA0, moded_vRangeA1, moded_wMaxA));
+        const FLOAT_TYPE sign = (modified_uMode == helperOC::DynSys_UMode_Max) ? 1 : -1;
+        if (beacls::is_cuda(lam_Ux_uvec) && beacls::is_cuda(lam_Uy_uvec) && beacls::is_cuda(lam_r_uvec)) {
+            thrust::device_ptr<FLOAT_TYPE> d_dev_ptr            = thrust::device_pointer_cast(d_ptr);
+            thrust::device_ptr<FLOAT_TYPE> Fx_dev_ptr           = thrust::device_pointer_cast(Fx_ptr);
+            thrust::device_ptr<const FLOAT_TYPE> Ux_dev_ptr     = thrust::device_pointer_cast(Ux_ptr);
+            thrust::device_ptr<const FLOAT_TYPE> Uy_dev_ptr     = thrust::device_pointer_cast(Uy_ptr);
+            thrust::device_ptr<const FLOAT_TYPE> r_dev_ptr      = thrust::device_pointer_cast(r_ptr);
+            thrust::device_ptr<const FLOAT_TYPE> lam_Ux_dev_ptr = thrust::device_pointer_cast(lam_Ux_ptr);
+            thrust::device_ptr<const FLOAT_TYPE> lam_Uy_dev_ptr = thrust::device_pointer_cast(lam_Uy_ptr);
+            thrust::device_ptr<const FLOAT_TYPE> lam_r_dev_ptr  = thrust::device_pointer_cast(lam_r_ptr);
+            cudaStream_t d_stream = beacls::get_stream(d_uvec);
+            Fx_uvec    .set_cudaStream(d_stream);
+            Ux_uvec    .set_cudaStream(d_stream);
+            Uy_uvec    .set_cudaStream(d_stream);
+            r_uvec     .set_cudaStream(d_stream);
+            lam_Ux_uvec.set_cudaStream(d_stream);
+            lam_Uy_uvec.set_cudaStream(d_stream);
+            lam_r_uvec .set_cudaStream(d_stream);
+            auto Tuple = thrust::make_tuple(d_dev_ptr,
+                                            Fx_dev_ptr,
+                                            Ux_dev_ptr,
+                                            Uy_dev_ptr,
+                                            r_dev_ptr,
+                                            lam_Ux_dev_ptr,
+                                            lam_Uy_dev_ptr,
+                                            lam_r_dev_ptr);
+            auto Iterator = thrust::make_zip_iterator(Tuple);
+            thrust::for_each(thrust::cuda::par.on(d_stream), Iterator, Iterator + d_uvec.size(), Get_optCtrl(sign));
+        } else {
+            const FLOAT_TYPE Ux     = Ux_ptr[0];
+            const FLOAT_TYPE Uy     = Uy_ptr[0];
+            const FLOAT_TYPE r      = r_ptr[0];
+            const FLOAT_TYPE lam_Ux = lam_Ux_ptr[0];
+            const FLOAT_TYPE lam_Uy = lam_Uy_ptr[0];
+            const FLOAT_TYPE lam_r  = lam_r_ptr[0];
+
+            const FLOAT_TYPE A = lam_Ux / X1::m;                              // Fx coefficient
+            const FLOAT_TYPE B = lam_Uy / X1::m + X1::a * lam_r / X1::Izz;    // Fyf coefficient
+            const FLOAT_TYPE C = lam_Uy / X1::m - X1::b * lam_r / X1::Izz;    // Fyr coefficient
+
+            const FLOAT_TYPE dOpt = ((B >= 0) - (B < 0))*sign*X1::d_max;
+
+            FLOAT_TYPE valueOpt = sign*1e6;
+            FLOAT_TYPE FxOpt = 0;
+
+            for (size_t n = 0; n < 50; ++n) {    // 100% willing to unroll this loop
+                FLOAT_TYPE frac = ((FLOAT_TYPE)n)/((FLOAT_TYPE)(50-1));
+                FLOAT_TYPE Fx = frac * X1::maxFx + X1::minFx * (1.0 - frac);
+
+                FLOAT_TYPE Fxf = (Fx >= 0)*Fx*X1::fwd_frac + (Fx < 0)*Fx*X1::fwb_frac;    // no branches!
+                FLOAT_TYPE Fxr = (Fx >= 0)*Fx*X1::rwd_frac + (Fx < 0)*Fx*X1::rwb_frac;    // no branches!
+                FLOAT_TYPE af  = atan2_float_type<FLOAT_TYPE>(Uy + X1::a * r, Ux) - d;
+                FLOAT_TYPE ar  = atan2_float_type<FLOAT_TYPE>(Uy - X1::b * r, Ux);
+                FLOAT_TYPE Fzf = (X1::m * X1::G * X1::b - X1::h * Fx) / X1::L;
+                FLOAT_TYPE Fzr = (X1::m * X1::G * X1::a + X1::h * Fx) / X1::L;
+                // Fyf (inlined BicycleCAvoid::fialaTireModel(af, X1::Caf, X1::mu, Fxf, Fzf))
+                FLOAT_TYPE a  = af;
+                FLOAT_TYPE Ca = X1::Caf;
+                FLOAT_TYPE mu = X1::mu;
+                FLOAT_TYPE fx = Fxf;    // avoid name conflict with input Fx; damn inlining
+                FLOAT_TYPE Fz = Fzf;
+                FLOAT_TYPE Fymax = sqrt_float_type<FLOAT_TYPE>((abs_float_type<FLOAT_TYPE>(fx) < Fmax)*(Fmax * Fmax - fx * fx));    // no branches!
+                FLOAT_TYPE tana  = tan_float_type<FLOAT_TYPE>(a);
+                FLOAT_TYPE ratio = abs_float_type<FLOAT_TYPE>(tana * Ca / (3 * (Fymax > 0) * Fymax + (Fymax <= 0))) + (Fymax <= 0); // ratio >= 1 if Fymax <= 0
+                FLOAT_TYPE Fyf = (ratio < 1)*(-Ca * tana * (1 - ratio + ratio * ratio / 3)) + (ratio >= 1)*(-copysign_float_type<FLOAT_TYPE>(Fymax, tana));
+                // Fyr (inlined BicycleCAvoid::fialaTireModel(ar, X1::Car, X1::mu, Fxr, Fzr))
+                a  = ar;
+                Ca = X1::Car;
+                mu = X1::mu;
+                fx = Fxr;
+                Fz = Fzr;
+                Fymax = sqrt_float_type<FLOAT_TYPE>((abs_float_type<FLOAT_TYPE>(fx) < Fmax)*(Fmax * Fmax - fx * fx));    // no branches!
+                tana  = tan_float_type<FLOAT_TYPE>(a);
+                ratio = abs_float_type<FLOAT_TYPE>(tana * Ca / (3 * (Fymax > 0) * Fymax + (Fymax <= 0))) + (Fymax <= 0); // ratio >= 1 if Fymax <= 0
+                FLOAT_TYPE Fyr = (ratio < 1)*(-Ca * tana * (1 - ratio + ratio * ratio / 3)) + (ratio >= 1)*(-copysign_float_type<FLOAT_TYPE>(Fymax, tana));
+                value = A * Fx + B * Fyf + C * Fyr;
+                if ( ((sign > 0) && (value > valueOpt)) || ((sign < 0) && (value < valueOpt)) ) {
+                    FxOpt = Fxi;
+                    valueOpt = value;
+                }
+            }
+            d_ptr[0]  = dOpt;
+            Fx_ptr[0] = FxOpt;
         }
-        else {
-            const FLOAT_TYPE d0 = deriv0_ptr[0];
-            const FLOAT_TYPE d1 = deriv1_ptr[0];
-            const FLOAT_TYPE d2 = deriv2_ptr[0];
-            const FLOAT_TYPE det0 = -d0;
-            uOpt0_ptr[0] = (det0 >= 0) ? moded_vRangeA1 : moded_vRangeA0;
-            thrust::transform(thrust::cuda::par.on(u_stream),
-                y0_dev_ptr, y0_dev_ptr + x_uvecs[0].size(), y1_dev_ptr, uOpt1_dev_ptr,
-                Get_optCtrl_dim1_d(moded_wMaxA, d0, d1, d2));
-        }
-    }
-    else {
+    } else {
         std::cerr << "Unknown uMode!: " << uMode << std::endl;
         result = false;
     }
     return result;
 }
 
-struct Get_optDstb_dim0_d {
+struct Get_optDstb {
 public:
-    const FLOAT_TYPE vrangeB0;
-    const FLOAT_TYPE vrangeB1;
-    const FLOAT_TYPE d0;
-    const FLOAT_TYPE d1;
-    Get_optDstb_dim0_d(const FLOAT_TYPE vrangeB0, const FLOAT_TYPE vrangeB1, const FLOAT_TYPE d0, const FLOAT_TYPE d1) :
-        vrangeB0(vrangeB0), vrangeB1(vrangeB1), d0(d0), d1(d1) {}
-    __host__ __device__
-    FLOAT_TYPE operator()(const FLOAT_TYPE y2) const
-    {
-        FLOAT_TYPE sin_y2;
-        FLOAT_TYPE cos_y2;
-        sincos_float_type<FLOAT_TYPE>(y2, sin_y2, cos_y2);
-
-        const FLOAT_TYPE det0 = d0 * cos_y2 + d1 * sin_y2;
-        return (det0 >= 0) ? vrangeB1 : vrangeB0;
-    }
-};
-
-struct Get_optDstb_dim0dim1dim2dim3dim4_D {
-public:
-    const FLOAT_TYPE vrangeB0;
-    const FLOAT_TYPE vrangeB1;
-    const FLOAT_TYPE wMaxB;
-    const FLOAT_TYPE dMaxA_0_dMaxB_0;
-    const FLOAT_TYPE dMaxA_1_dMaxB_1;
-    Get_optDstb_dim0dim1dim2dim3dim4_D(
-        const FLOAT_TYPE vrangeB0,
-        const FLOAT_TYPE vrangeB1,
-        const FLOAT_TYPE wMaxB,
-        const FLOAT_TYPE dMaxA_0_dMaxB_0,
-        const FLOAT_TYPE dMaxA_1_dMaxB_1) :
-        vrangeB0(vrangeB0),
-        vrangeB1(vrangeB1),
-        wMaxB(wMaxB),
-        dMaxA_0_dMaxB_0(dMaxA_0_dMaxB_0),
-        dMaxA_1_dMaxB_1(dMaxA_1_dMaxB_1) {}
+    const FLOAT_TYPE sign;
+    Get_optDstb(const FLOAT_TYPE sign) : sign(sign) {}
     template<typename Tuple>
     __host__ __device__
     void operator()(Tuple v) const
     {
-        const FLOAT_TYPE y2 = thrust::get<5>(v);
-        const FLOAT_TYPE deriv0 = thrust::get<6>(v);
-        const FLOAT_TYPE deriv1 = thrust::get<7>(v);
-        const FLOAT_TYPE deriv2 = thrust::get<8>(v);
-        FLOAT_TYPE sin_y2;
-        FLOAT_TYPE cos_y2;
-        sincos_float_type<FLOAT_TYPE>(y2, sin_y2, cos_y2);
-        const FLOAT_TYPE normDeriv = sqrt_float_type<FLOAT_TYPE>(deriv0 * deriv0 + deriv1 * deriv1);
-        const FLOAT_TYPE det0 = deriv0 * cos_y2 + deriv1 * sin_y2;
-        thrust::get<0>(v) = (det0 >= 0) ? vrangeB1 : vrangeB0;
-        if (normDeriv == 0) {
-            thrust::get<2>(v) = 0;
-            thrust::get<3>(v) = 0;
+        const FLOAT_TYPE V      = thrust::get<2>(v);
+        const FLOAT_TYPE lam_w  = thrust::get<3>(v);
+        const FLOAT_TYPE lam_Ax = thrust::get<4>(v);
+        FLOAT_TYPE lam_Ay = lam_w / V;
+        FLOAT_TYPE lam_norm = hypot_float_type<FLOAT_TYPE>(lam_Ax, lam_Ay);
+        if (lam_norm < 0.001) {    // fuk tuples, i.e., I ain't debranching this
+            thrust::get<0>(v) = 0;
+            thrust::get<1>(v) = 0;
         } else {
-            thrust::get<2>(v) = dMaxA_0_dMaxB_0 * deriv0 / normDeriv;
-            thrust::get<3>(v) = dMaxA_0_dMaxB_0 * deriv1 / normDeriv;
-        }
-        if (deriv2 >= 0) {
-            thrust::get<1>(v) = wMaxB;
-            thrust::get<4>(v) = dMaxA_1_dMaxB_1;
-        } else {
-            thrust::get<1>(v) = -wMaxB;
-            thrust::get<4>(v) = -dMaxA_1_dMaxB_1;
+            FLOAT_TYPE desAx = sign * lam_Ax * maxA / lam_norm;
+            FLOAT_TYPE desAy = sign * lam_Ay * maxA / lam_norm;
+            FLOAT_TYPE maxAx = min_float_type<FLOAT_TYPE>(X1::maxAx, X1::maxP2mx / V);  // max longitudinal acceleration
+            FLOAT_TYPE maxAy = X1::w_per_v_max_lowspeed * V * V;                        // also bounded by maxA
+            if (desAx > maxAx) {
+                if (abs_float_type<FLOAT_TYPE>(desAy) < maxAy) {
+                    maxAy = min_float_type<FLOAT_TYPE>(sqrt_float_type<FLOAT_TYPE>(maxA * maxA - maxAx * maxAx), maxAy);
+                }
+                thrust::get<0>(v) = copysign_float_type<FLOAT_TYPE>(maxAy, desAy) / V;
+                thrust::get<1>(v) = maxAx;
+            } else {
+                if (abs_float_type<FLOAT_TYPE>(desAy) > maxAy) {
+                    if (desAxi > 0) {
+                        maxAx = min_float_type<FLOAT_TYPE>(sqrt_float_type<FLOAT_TYPE>(maxA * maxA - maxAy * maxAy), maxAx);
+                        thrust::get<0>(v) = copysign_float_type<FLOAT_TYPE>(maxAy, desAy) / V;
+                        thrust::get<1>(v) = maxAx;
+                    } else {
+                        thrust::get<0>(v) = copysign_float_type<FLOAT_TYPE>(maxAy, desAy) / V;
+                        thrust::get<1>(v) = -sqrt_float_type<FLOAT_TYPE>(maxA * maxA - maxAy * maxAy);
+                    }
+                } else {
+                    thrust::get<0>(v) = desAy / V;
+                    thrust::get<1>(v) = maxAx;
+                }
+            }
         }
     }
 };
+
 bool optDstb_execute_cuda(
     std::vector<beacls::UVec>& d_uvecs,
     const std::vector<beacls::UVec>& x_uvecs,
     const std::vector<beacls::UVec>& deriv_uvecs,
-    const std::vector<FLOAT_TYPE>& dMaxA,
-    const std::vector<FLOAT_TYPE>& dMaxB,
-    const std::vector<FLOAT_TYPE>& vRangeB,
-    const FLOAT_TYPE wMaxB,
     const helperOC::DynSys_DMode_Type dMode
-)
-{
+) {
     bool result = true;
-    beacls::reallocateAsSrc(d_uvecs[0], x_uvecs[2]);
-    beacls::reallocateAsSrc(d_uvecs[1], deriv_uvecs[0]);
-    beacls::reallocateAsSrc(d_uvecs[2], deriv_uvecs[0]);
-    beacls::reallocateAsSrc(d_uvecs[3], deriv_uvecs[0]);
-    beacls::reallocateAsSrc(d_uvecs[4], deriv_uvecs[0]);
-    FLOAT_TYPE* dOpt0_ptr = beacls::UVec_<FLOAT_TYPE>(d_uvecs[0]).ptr();
-    FLOAT_TYPE* dOpt1_ptr = beacls::UVec_<FLOAT_TYPE>(d_uvecs[1]).ptr();
-    FLOAT_TYPE* dOpt2_ptr = beacls::UVec_<FLOAT_TYPE>(d_uvecs[2]).ptr();
-    FLOAT_TYPE* dOpt3_ptr = beacls::UVec_<FLOAT_TYPE>(d_uvecs[3]).ptr();
-    FLOAT_TYPE* dOpt4_ptr = beacls::UVec_<FLOAT_TYPE>(d_uvecs[4]).ptr();
-    const FLOAT_TYPE* y2_ptr = beacls::UVec_<FLOAT_TYPE>(x_uvecs[2]).ptr();
-    const FLOAT_TYPE* deriv0_ptr = beacls::UVec_<FLOAT_TYPE>(deriv_uvecs[0]).ptr();
-    const FLOAT_TYPE* deriv1_ptr = beacls::UVec_<FLOAT_TYPE>(deriv_uvecs[1]).ptr();
-    const FLOAT_TYPE* deriv2_ptr = beacls::UVec_<FLOAT_TYPE>(deriv_uvecs[2]).ptr();
-    const FLOAT_TYPE dMaxA_0 = dMaxA[0];
-    const FLOAT_TYPE dMaxA_1 = dMaxA[1];
-    const FLOAT_TYPE dMaxB_0 = dMaxB[0];
-    const FLOAT_TYPE dMaxB_1 = dMaxB[1];
-    const FLOAT_TYPE vRangeB0 = vRangeB[0];
-    const FLOAT_TYPE vRangeB1 = vRangeB[1];
-    const FLOAT_TYPE dMaxA_0_dMaxB_0 = dMaxA_0 + dMaxB_0;
-    const FLOAT_TYPE dMaxA_1_dMaxB_1 = dMaxA_1 + dMaxB_1;
+    beacls::UVec& w_uvec = d_uvecs[0];
+    beacls::UVec& a_uvec = d_uvecs[1];
+    const beacls::UVec& V_uvec      = x_uvecs[5];        // a bit worried about the size of this uvec; TODO assert?
+    const beacls::UVec& lam_w_uvec  = deriv_uvecs[2];
+    const beacls::UVec& lam_Ax_uvec = deriv_uvecs[5];
+
+    beacls::reallocateAsSrc(w_uvec, deriv_uvecs[0]);
+    beacls::reallocateAsSrc(a_uvec, deriv_uvecs[0]);
+
+    FLOAT_TYPE* w_ptr            = beacls::UVec_<FLOAT_TYPE>(w_uvec).ptr();
+    FLOAT_TYPE* a_ptr            = beacls::UVec_<FLOAT_TYPE>(a_uvec).ptr();
+    const FLOAT_TYPE* V_ptr      = beacls::UVec_<FLOAT_TYPE>(V_uvec).ptr();
+    const FLOAT_TYPE* lam_w_ptr  = beacls::UVec_<FLOAT_TYPE>(lam_w_uvec).ptr();
+    const FLOAT_TYPE* lam_Ax_ptr = beacls::UVec_<FLOAT_TYPE>(lam_Ax_uvec).ptr();
+
     if ((dMode == helperOC::DynSys_DMode_Max) || (dMode == helperOC::DynSys_DMode_Min)) {
-        const FLOAT_TYPE moded_wMaxB = (dMode == helperOC::DynSys_DMode_Max) ? wMaxB : -wMaxB;
-        const FLOAT_TYPE moded_vRangeB0 = (dMode == helperOC::DynSys_DMode_Max) ? vRangeB0 : vRangeB1;
-        const FLOAT_TYPE moded_vRangeB1 = (dMode == helperOC::DynSys_DMode_Max) ? vRangeB1 : vRangeB0;
-        const FLOAT_TYPE moded_dMaxA_0_dMaxB_0 = (dMode == helperOC::DynSys_DMode_Max) ? dMaxA_0_dMaxB_0 : -dMaxA_0_dMaxB_0;
-        const FLOAT_TYPE moded_dMaxA_1_dMaxB_1 = (dMode == helperOC::DynSys_DMode_Max) ? dMaxA_1_dMaxB_1 : -dMaxA_1_dMaxB_1;
-        thrust::device_ptr<FLOAT_TYPE> dOpt0_dev_ptr = thrust::device_pointer_cast(dOpt0_ptr);
-        cudaStream_t d_stream = beacls::get_stream(d_uvecs[0]);
-        thrust::device_ptr<const FLOAT_TYPE> y2_dev_ptr = thrust::device_pointer_cast(y2_ptr);
-        if (beacls::is_cuda(deriv_uvecs[0]) && beacls::is_cuda(deriv_uvecs[1]) && beacls::is_cuda(deriv_uvecs[2])){
-            thrust::device_ptr<FLOAT_TYPE> dOpt1_dev_ptr = thrust::device_pointer_cast(dOpt1_ptr);
-            thrust::device_ptr<FLOAT_TYPE> dOpt2_dev_ptr = thrust::device_pointer_cast(dOpt2_ptr);
-            thrust::device_ptr<FLOAT_TYPE> dOpt3_dev_ptr = thrust::device_pointer_cast(dOpt3_ptr);
-            thrust::device_ptr<FLOAT_TYPE> dOpt4_dev_ptr = thrust::device_pointer_cast(dOpt4_ptr);
-            thrust::device_ptr<const FLOAT_TYPE> deriv0_dev_ptr = thrust::device_pointer_cast(deriv0_ptr);
-            thrust::device_ptr<const FLOAT_TYPE> deriv1_dev_ptr = thrust::device_pointer_cast(deriv1_ptr);
-            thrust::device_ptr<const FLOAT_TYPE> deriv2_dev_ptr = thrust::device_pointer_cast(deriv2_ptr);
-            d_uvecs[1].set_cudaStream(d_uvecs[0].get_cudaStream());
-            d_uvecs[2].set_cudaStream(d_uvecs[0].get_cudaStream());
-            d_uvecs[3].set_cudaStream(d_uvecs[0].get_cudaStream());
-            d_uvecs[4].set_cudaStream(d_uvecs[0].get_cudaStream());
-            auto dst_src_Tuple = thrust::make_tuple(
-                dOpt0_dev_ptr, dOpt1_dev_ptr, dOpt2_dev_ptr, dOpt3_dev_ptr, dOpt4_dev_ptr,
-                y2_dev_ptr, deriv0_dev_ptr, deriv1_dev_ptr, deriv2_dev_ptr);
-            auto dst_src_Iterator = thrust::make_zip_iterator(dst_src_Tuple);
-            thrust::for_each(thrust::cuda::par.on(d_stream),
-                dst_src_Iterator, dst_src_Iterator + deriv_uvecs[0].size(),
-                Get_optDstb_dim0dim1dim2dim3dim4_D(moded_vRangeB0, moded_vRangeB1,
-                    moded_wMaxB, moded_dMaxA_0_dMaxB_0, moded_dMaxA_1_dMaxB_1));
+        const FLOAT_TYPE sign = (modified_dMode == helperOC::DynSys_DMode_Max) ? 1 : -1;
+        if (beacls::is_cuda(lam_w_uvec) && beacls::is_cuda(lam_Ax_uvec)) {
+            thrust::device_ptr<FLOAT_TYPE> w_dev_ptr            = thrust::device_pointer_cast(w_ptr);
+            thrust::device_ptr<FLOAT_TYPE> a_dev_ptr            = thrust::device_pointer_cast(a_ptr);
+            thrust::device_ptr<const FLOAT_TYPE> V_dev_ptr      = thrust::device_pointer_cast(V_ptr);
+            thrust::device_ptr<const FLOAT_TYPE> lam_w_dev_ptr  = thrust::device_pointer_cast(lam_w_ptr);
+            thrust::device_ptr<const FLOAT_TYPE> lam_Ax_dev_ptr = thrust::device_pointer_cast(lam_Ax_ptr);
+            cudaStream_t d_stream = beacls::get_stream(w_uvec);
+            a_uvec     .set_cudaStream(d_stream);
+            V_uvec     .set_cudaStream(d_stream);
+            lam_w_uvec .set_cudaStream(d_stream);
+            lam_Ax_uvec.set_cudaStream(d_stream);
+            auto Tuple = thrust::make_tuple(w_dev_ptr,
+                                            a_dev_ptr,
+                                            V_dev_ptr,
+                                            lam_w_dev_ptr,
+                                            lam_Ax_dev_ptr);
+            auto Iterator = thrust::make_zip_iterator(Tuple);
+            thrust::for_each(thrust::cuda::par.on(d_stream), Iterator, Iterator + w_uvec.size(), Get_optDstb(sign));
+        } else {
+            const FLOAT_TYPE V      = V_ptr[0];
+            const FLOAT_TYPE lam_w  = lam_w_ptr[0];
+            const FLOAT_TYPE lam_Ax = lam_Ax_ptr[0];
+            FLOAT_TYPE lam_Ay = lam_w / V;
+            FLOAT_TYPE lam_norm = hypot_float_type<FLOAT_TYPE>(lam_Ax, lam_Ay);
+            if (lam_norm < 0.001) {    // fuk tuples, i.e., I ain't debranching this
+                w_ptr[0] = 0;
+                a_ptr[0] = 0;
+            } else {
+                FLOAT_TYPE desAx = sign * lam_Ax * maxA / lam_norm;
+                FLOAT_TYPE desAy = sign * lam_Ay * maxA / lam_norm;
+                FLOAT_TYPE maxAx = min_float_type<FLOAT_TYPE>(X1::maxAx, X1::maxP2mx / V);  // max longitudinal acceleration
+                FLOAT_TYPE maxAy = X1::w_per_v_max_lowspeed * V * V;                        // also bounded by maxA
+                if (desAx > maxAx) {
+                    if (abs_float_type<FLOAT_TYPE>(desAy) < maxAy) {
+                        maxAy = min_float_type<FLOAT_TYPE>(sqrt_float_type<FLOAT_TYPE>(maxA * maxA - maxAx * maxAx), maxAy);
+                    }
+                    w_ptr[0] = copysign_float_type<FLOAT_TYPE>(maxAy, desAy) / V;
+                    a_ptr[0] = maxAx;
+                } else {
+                    if (abs_float_type<FLOAT_TYPE>(desAy) > maxAy) {
+                        if (desAxi > 0) {
+                            maxAx = min_float_type<FLOAT_TYPE>(sqrt_float_type<FLOAT_TYPE>(maxA * maxA - maxAy * maxAy), maxAx);
+                            w_ptr[0] = copysign_float_type<FLOAT_TYPE>(maxAy, desAy) / V;
+                            a_ptr[0] = maxAx;
+                        } else {
+                            w_ptr[0] = copysign_float_type<FLOAT_TYPE>(maxAy, desAy) / V;
+                            a_ptr[0] = -sqrt_float_type<FLOAT_TYPE>(maxA * maxA - maxAy * maxAy);
+                        }
+                    } else {
+                        w_ptr[0] = desAy / V;
+                        a_ptr[0] = maxAx;
+                    }
+                }
+            }
         }
-        else {
-            const FLOAT_TYPE d0 = deriv0_ptr[0];
-            const FLOAT_TYPE d1 = deriv1_ptr[0];
-            const FLOAT_TYPE d2 = deriv2_ptr[0];
-            thrust::transform(thrust::cuda::par.on(d_stream),
-                y2_dev_ptr, y2_dev_ptr + x_uvecs[2].size(), dOpt0_dev_ptr,
-                Get_optDstb_dim0_d(moded_vRangeB0, moded_vRangeB1, d0, d1));
-            const FLOAT_TYPE det1 = d2;
-            const FLOAT_TYPE det4 = d2;
-            dOpt1_ptr[0] = (det1 >= 0) ? moded_wMaxB : -moded_wMaxB;
-            dOpt4_ptr[0] = (det4 >= 0) ? moded_dMaxA_1_dMaxB_1 : -moded_dMaxA_1_dMaxB_1;
-            const FLOAT_TYPE denom = sqrt_float_type<FLOAT_TYPE>(d0 * d0 + d1 * d1);
-            dOpt2_ptr[0] = (denom == 0) ? 0 : moded_dMaxA_0_dMaxB_0 * d0 / denom;
-            dOpt3_ptr[0] = (denom == 0) ? 0 : moded_dMaxA_0_dMaxB_0 * d1 / denom;
-        }
-    }
-    else {
+    } else {
         std::cerr << "Unknown dMode!: " << dMode << std::endl;
         result = false;
     }
@@ -343,10 +401,10 @@ struct Get_dynamics_Ux_Uy_r__D_FX
         const FLOAT_TYPE r  = thrust::get<5>(v);
         const FLOAT_TYPE d  = thrust::get<6>(v);
         const FLOAT_TYPE Fx = thrust::get<7>(v);
-        FLOAT_TYPE Fxf     = (Fx >= 0)*Fx*X1::fwd_frac + (Fx < 0)*Fx*X1::fwb_frac;    // no branches!
-        FLOAT_TYPE Fxr     = (Fx >= 0)*Fx*X1::rwd_frac + (Fx < 0)*Fx*X1::rwb_frac;    // no branches!
-        FLOAT_TYPE Fx_drag = -X1::Cd0 - Ux * (X1::Cd1 + X1::Cd2 * Ux);
-        FLOAT_TYPE af = atan2_float_type<FLOAT_TYPE>(Uy + X1::a * r, Ux) - d;
+        FLOAT_TYPE Fxf = (Fx >= 0)*Fx*X1::fwd_frac + (Fx < 0)*Fx*X1::fwb_frac;    // no branches! (... apparently this is unnecessary)
+        FLOAT_TYPE Fxr = (Fx >= 0)*Fx*X1::rwd_frac + (Fx < 0)*Fx*X1::rwb_frac;    // no branches!
+        FLOAT_TYPE Fx_ drag = -X1::Cd0 - Ux * (X1::Cd1 + X1::Cd2 * Ux);
+        FLOAT_TYPE af  = atan2_float_type<FLOAT_TYPE>(Uy + X1::a * r, Ux) - d;
         FLOAT_TYPE ar = atan2_float_type<FLOAT_TYPE>(Uy - X1::b * r, Ux);
         FLOAT_TYPE Fzf = (X1::m * X1::G * X1::b - X1::h * Fx) / X1::L;
         FLOAT_TYPE Fzr = (X1::m * X1::G * X1::a + X1::h * Fx) / X1::L;
@@ -354,9 +412,9 @@ struct Get_dynamics_Ux_Uy_r__D_FX
         FLOAT_TYPE a  = af;
         FLOAT_TYPE Ca = X1::Caf;
         FLOAT_TYPE mu = X1::mu;
-        FLOAT_TYPE Fx = Fxf;
+        FLOAT_TYPE fx = Fxf;    // avoid name conflict with input Fx; damn inlining
         FLOAT_TYPE Fz = Fzf;
-        FLOAT_TYPE Fymax = sqrt_float_type<FLOAT_TYPE>((abs_float_type<FLOAT_TYPE>(Fx) < Fmax)*(Fmax * Fmax - Fx * Fx));    // no branches!
+        FLOAT_TYPE Fymax = sqrt_float_type<FLOAT_TYPE>((abs_float_type<FLOAT_TYPE>(fx) < Fmax)*(Fmax * Fmax - fx * fx));    // no branches!
         FLOAT_TYPE tana  = tan_float_type<FLOAT_TYPE>(a);
         FLOAT_TYPE ratio = abs_float_type<FLOAT_TYPE>(tana * Ca / (3 * (Fymax > 0) * Fymax + (Fymax <= 0))) + (Fymax <= 0); // ratio >= 1 if Fymax <= 0
         FLOAT_TYPE Fyf = (ratio < 1)*(-Ca * tana * (1 - ratio + ratio * ratio / 3)) + (ratio >= 1)*(-copysign_float_type<FLOAT_TYPE>(Fymax, tana));
@@ -364,9 +422,9 @@ struct Get_dynamics_Ux_Uy_r__D_FX
         a  = ar;
         Ca = X1::Car;
         mu = X1::mu;
-        Fx = Fxr;
+        fx = Fxr;
         Fz = Fzr;
-        Fymax = sqrt_float_type<FLOAT_TYPE>((abs_float_type<FLOAT_TYPE>(Fx) < Fmax)*(Fmax * Fmax - Fx * Fx));    // no branches!
+        Fymax = sqrt_float_type<FLOAT_TYPE>((abs_float_type<FLOAT_TYPE>(fx) < Fmax)*(Fmax * Fmax - fx * fx));    // no branches!
         tana  = tan_float_type<FLOAT_TYPE>(a);
         ratio = abs_float_type<FLOAT_TYPE>(tana * Ca / (3 * (Fymax > 0) * Fymax + (Fymax <= 0))) + (Fymax <= 0); // ratio >= 1 if Fymax <= 0
         FLOAT_TYPE Fyr = (ratio < 1)*(-Ca * tana * (1 - ratio + ratio * ratio / 3)) + (ratio >= 1)*(-copysign_float_type<FLOAT_TYPE>(Fymax, tana));
@@ -486,19 +544,19 @@ struct Get_dynamics_Uy__D_FX
         const FLOAT_TYPE r  = thrust::get<3>(v);
         const FLOAT_TYPE d  = thrust::get<4>(v);
         const FLOAT_TYPE Fx = thrust::get<5>(v);
-        FLOAT_TYPE Fxf     = (Fx >= 0)*Fx*X1::fwd_frac + (Fx < 0)*Fx*X1::fwb_frac;    // no branches!
-        FLOAT_TYPE Fxr     = (Fx >= 0)*Fx*X1::rwd_frac + (Fx < 0)*Fx*X1::rwb_frac;    // no branches!
-        FLOAT_TYPE af = atan2_float_type<FLOAT_TYPE>(Uy + X1::a * r, Ux) - d;
-        FLOAT_TYPE ar = atan2_float_type<FLOAT_TYPE>(Uy - X1::b * r, Ux);
+        FLOAT_TYPE Fxf = (Fx >= 0)*Fx*X1::fwd_frac + (Fx < 0)*Fx*X1::fwb_frac;    // no branches!
+        FLOAT_TYPE Fxr = (Fx >= 0)*Fx*X1::rwd_frac + (Fx < 0)*Fx*X1::rwb_frac;    // no branches!
+        FLOAT_TYPE af  = atan2_float_type<FLOAT_TYPE>(Uy + X1::a * r, Ux) - d;
+        FLOAT_TYPE ar  = atan2_float_type<FLOAT_TYPE>(Uy - X1::b * r, Ux);
         FLOAT_TYPE Fzf = (X1::m * X1::G * X1::b - X1::h * Fx) / X1::L;
         FLOAT_TYPE Fzr = (X1::m * X1::G * X1::a + X1::h * Fx) / X1::L;
         // Fyf (inlined BicycleCAvoid::fialaTireModel(af, X1::Caf, X1::mu, Fxf, Fzf))
         FLOAT_TYPE a  = af;
         FLOAT_TYPE Ca = X1::Caf;
         FLOAT_TYPE mu = X1::mu;
-        FLOAT_TYPE Fx = Fxf;
+        FLOAT_TYPE fx = Fxf;    // avoid name conflict with input Fx; damn inlining
         FLOAT_TYPE Fz = Fzf;
-        FLOAT_TYPE Fymax = sqrt_float_type<FLOAT_TYPE>((abs_float_type<FLOAT_TYPE>(Fx) < Fmax)*(Fmax * Fmax - Fx * Fx));    // no branches!
+        FLOAT_TYPE Fymax = sqrt_float_type<FLOAT_TYPE>((abs_float_type<FLOAT_TYPE>(fx) < Fmax)*(Fmax * Fmax - fx * fx));    // no branches!
         FLOAT_TYPE tana  = tan_float_type<FLOAT_TYPE>(a);
         FLOAT_TYPE ratio = abs_float_type<FLOAT_TYPE>(tana * Ca / (3 * (Fymax > 0) * Fymax + (Fymax <= 0))) + (Fymax <= 0); // ratio >= 1 if Fymax <= 0
         FLOAT_TYPE Fyf = (ratio < 1)*(-Ca * tana * (1 - ratio + ratio * ratio / 3)) + (ratio >= 1)*(-copysign_float_type<FLOAT_TYPE>(Fymax, tana));
@@ -506,9 +564,9 @@ struct Get_dynamics_Uy__D_FX
         a  = ar;
         Ca = X1::Car;
         mu = X1::mu;
-        Fx = Fxr;
+        fx = Fxr;
         Fz = Fzr;
-        Fymax = sqrt_float_type<FLOAT_TYPE>((abs_float_type<FLOAT_TYPE>(Fx) < Fmax)*(Fmax * Fmax - Fx * Fx));    // no branches!
+        Fymax = sqrt_float_type<FLOAT_TYPE>((abs_float_type<FLOAT_TYPE>(fx) < Fmax)*(Fmax * Fmax - fx * fx));    // no branches!
         tana  = tan_float_type<FLOAT_TYPE>(a);
         ratio = abs_float_type<FLOAT_TYPE>(tana * Ca / (3 * (Fymax > 0) * Fymax + (Fymax <= 0))) + (Fymax <= 0); // ratio >= 1 if Fymax <= 0
         FLOAT_TYPE Fyr = (ratio < 1)*(-Ca * tana * (1 - ratio + ratio * ratio / 3)) + (ratio >= 1)*(-copysign_float_type<FLOAT_TYPE>(Fymax, tana));
@@ -528,19 +586,19 @@ struct Get_dynamics_r__D_FX
         const FLOAT_TYPE r  = thrust::get<3>(v);
         const FLOAT_TYPE d  = thrust::get<4>(v);
         const FLOAT_TYPE Fx = thrust::get<5>(v);
-        FLOAT_TYPE Fxf     = (Fx >= 0)*Fx*X1::fwd_frac + (Fx < 0)*Fx*X1::fwb_frac;    // no branches!
-        FLOAT_TYPE Fxr     = (Fx >= 0)*Fx*X1::rwd_frac + (Fx < 0)*Fx*X1::rwb_frac;    // no branches!
-        FLOAT_TYPE af = atan2_float_type<FLOAT_TYPE>(Uy + X1::a * r, Ux) - d;
-        FLOAT_TYPE ar = atan2_float_type<FLOAT_TYPE>(Uy - X1::b * r, Ux);
+        FLOAT_TYPE Fxf = (Fx >= 0)*Fx*X1::fwd_frac + (Fx < 0)*Fx*X1::fwb_frac;    // no branches!
+        FLOAT_TYPE Fxr = (Fx >= 0)*Fx*X1::rwd_frac + (Fx < 0)*Fx*X1::rwb_frac;    // no branches!
+        FLOAT_TYPE af  = atan2_float_type<FLOAT_TYPE>(Uy + X1::a * r, Ux) - d;
+        FLOAT_TYPE ar  = atan2_float_type<FLOAT_TYPE>(Uy - X1::b * r, Ux);
         FLOAT_TYPE Fzf = (X1::m * X1::G * X1::b - X1::h * Fx) / X1::L;
         FLOAT_TYPE Fzr = (X1::m * X1::G * X1::a + X1::h * Fx) / X1::L;
         // Fyf (inlined BicycleCAvoid::fialaTireModel(af, X1::Caf, X1::mu, Fxf, Fzf))
         FLOAT_TYPE a  = af;
         FLOAT_TYPE Ca = X1::Caf;
         FLOAT_TYPE mu = X1::mu;
-        FLOAT_TYPE Fx = Fxf;
+        FLOAT_TYPE fx = Fxf;    // avoid name conflict with input Fx; damn inlining
         FLOAT_TYPE Fz = Fzf;
-        FLOAT_TYPE Fymax = sqrt_float_type<FLOAT_TYPE>((abs_float_type<FLOAT_TYPE>(Fx) < Fmax)*(Fmax * Fmax - Fx * Fx));    // no branches!
+        FLOAT_TYPE Fymax = sqrt_float_type<FLOAT_TYPE>((abs_float_type<FLOAT_TYPE>(fx) < Fmax)*(Fmax * Fmax - fx * fx));    // no branches!
         FLOAT_TYPE tana  = tan_float_type<FLOAT_TYPE>(a);
         FLOAT_TYPE ratio = abs_float_type<FLOAT_TYPE>(tana * Ca / (3 * (Fymax > 0) * Fymax + (Fymax <= 0))) + (Fymax <= 0); // ratio >= 1 if Fymax <= 0
         FLOAT_TYPE Fyf = (ratio < 1)*(-Ca * tana * (1 - ratio + ratio * ratio / 3)) + (ratio >= 1)*(-copysign_float_type<FLOAT_TYPE>(Fymax, tana));
@@ -548,9 +606,9 @@ struct Get_dynamics_r__D_FX
         a  = ar;
         Ca = X1::Car;
         mu = X1::mu;
-        Fx = Fxr;
+        fx = Fxr;
         Fz = Fzr;
-        Fymax = sqrt_float_type<FLOAT_TYPE>((abs_float_type<FLOAT_TYPE>(Fx) < Fmax)*(Fmax * Fmax - Fx * Fx));    // no branches!
+        Fymax = sqrt_float_type<FLOAT_TYPE>((abs_float_type<FLOAT_TYPE>(fx) < Fmax)*(Fmax * Fmax - fx * fx));    // no branches!
         tana  = tan_float_type<FLOAT_TYPE>(a);
         ratio = abs_float_type<FLOAT_TYPE>(tana * Ca / (3 * (Fymax > 0) * Fymax + (Fymax <= 0))) + (Fymax <= 0); // ratio >= 1 if Fymax <= 0
         FLOAT_TYPE Fyr = (ratio < 1)*(-Ca * tana * (1 - ratio + ratio * ratio / 3)) + (ratio >= 1)*(-copysign_float_type<FLOAT_TYPE>(Fymax, tana));
