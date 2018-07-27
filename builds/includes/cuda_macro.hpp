@@ -56,6 +56,21 @@ T cos_float_type(const T& a) {
 }
 template<typename T>
 static inline
+T tan_float_type(const T& a) {
+	return std::tan(a);
+}
+template<typename T>
+static inline
+T atan2_float_type(const T& y, const T& x) {
+	return std::atan2(y, x);
+}
+template<typename T>
+static inline
+T copysign_float_type(const T& y, const T& x) {
+	return std::copysign(y, x);
+}
+template<typename T>
+static inline
 T sqrt_float_type(const T& a) {
 	return std::sqrt(a);
 }
@@ -180,6 +195,51 @@ template<>
 __host__ __device__
 double cos_float_type(const double& a) {
 	return cos(a);
+}
+
+template<typename T>
+__host__ __device__
+static inline
+T tan_float_type(const T& a);
+template<>
+__host__ __device__
+float tan_float_type(const float& a) {
+	return tanf(a);
+}
+template<>
+__host__ __device__
+double tan_float_type(const double& a) {
+	return tan(a);
+}
+
+template<typename T>
+__host__ __device__
+static inline
+T atan2_float_type(const T& y, const T& x);
+template<>
+__host__ __device__
+float atan2_float_type(const float& y, const float& x) {
+	return atan2f(y, x);
+}
+template<>
+__host__ __device__
+double atan2_float_type(const double& y, const double& x) {
+	return atan2(y, x);
+}
+
+template<typename T>
+__host__ __device__
+static inline
+T copysign_float_type(const T& y, const T& x);
+template<>
+__host__ __device__
+float copysign_float_type(const float& y, const float& x) {
+	return copysignf(y, x);
+}
+template<>
+__host__ __device__
+double copysign_float_type(const double& y, const double& x) {
+	return copysign(y, x);
 }
 
 template<typename T>

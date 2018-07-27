@@ -3,6 +3,7 @@
 
 #include <typedef.hpp>
 #include <vector>
+#include <helperOC/DynSys/BicycleCAvoid/X1Params.hpp>
 #include <helperOC/DynSys/DynSys/DynSysTypeDef.hpp>
 #include <cuda_macro.hpp>
 #include <Core/UVec.hpp>
