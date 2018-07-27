@@ -22,7 +22,7 @@ int main(int argc, char *argv[])
     beacls::IntegerVec gN;
     gN.resize(7, 11);
     if (argc > 1) {
-        std::stringstream ss(std::string(argv[1]));
+        std::stringstream ss(argv[1]);
         int d, i = 0;
         while (ss >> d) {
             gN[i] = d;
