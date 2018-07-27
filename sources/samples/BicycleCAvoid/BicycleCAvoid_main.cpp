@@ -18,16 +18,25 @@
     */
 int main(int argc, char *argv[])
 {
-    // 0 (name) 1, 2, 3, 4, 5, 6, 7 are the grid sizes,
+    // 0 (name); 1 is the grid size (comma separated, with last number repeated across all remaining dimensions)
     beacls::IntegerVec gN;
     gN.resize(7, 11);
-//     if (argc >= 8) {
-//         for (int i = 1; i <= 7; ++i){
-//             gN[i-1] = atoi(argv[i]);
-//         }
-//     }
+    if (argc > 1) {
+        std::stringstream ss(std::string(argv[1]));
+        int d, i = 0;
+        while (ss >> d) {
+            gN[i] = d;
+            i++;
+            if (ss.peek() == ',')
+                ss.ignore();
+        }
+        while (i < 7) {
+            gN[i] = gN[i-1];
+            i++;
+        }
+    }
 
-/////////////////////////////////////////////////////
+    /////////////////////////////////////////////////////
     // Ask Mo about these settings
     // Not sure what all the settings are...?
     // dump_file, line_length_of_chunk, model_size,
@@ -36,25 +45,24 @@ int main(int argc, char *argv[])
     levelset::DelayedDerivMinMax_Type delayedDerivMinMax = levelset::DelayedDerivMinMax_Disable;
 
     bool useCuda = false;
-    if (argc >= 9) {
-        useCuda = (atoi(argv[8]) == 0) ? false : true;
+    if (argc > 2) {
+        useCuda = (atoi(argv[2]) == 0) ? false : true;
     }
     int num_of_threads = 0;
-    if (argc >= 10) {
-        num_of_threads = atoi(argv[9]);
+    if (argc > 3) {
+        num_of_threads = atoi(argv[3]);
     }
     int num_of_gpus = 0;
-    if (argc >= 11) {
-        num_of_gpus = atoi(argv[10]);
+    if (argc > 4) {
+        num_of_gpus = atoi(argv[4]);
     }
     size_t line_length_of_chunk = 1;
-    if (argc >= 12) {
-        line_length_of_chunk = atoi(argv[11]);
+    if (argc > 5) {
+        line_length_of_chunk = atoi(argv[5]);
     }
-
     bool enable_user_defined_dynamics_on_gpu = true;
-    if (argc >= 13) {
-        enable_user_defined_dynamics_on_gpu = (atoi(argv[12]) == 0) ? false : true;
+    if (argc > 6) {
+        enable_user_defined_dynamics_on_gpu = (atoi(argv[6]) == 0) ? false : true;
     }
 
     //!< Grid
