@@ -84,6 +84,11 @@ T copysign_float_type(const T& y, const T& x) {
 }
 template<typename T>
 static inline
+T hypot_float_type(const T& y, const T& x) {
+	return std::hypot(y, x);
+}
+template<typename T>
+static inline
 T sqrt_float_type(const T& a) {
 	return std::sqrt(a);
 }
@@ -253,6 +258,21 @@ template<>
 __host__ __device__
 double copysign_float_type(const double& y, const double& x) {
 	return copysign(y, x);
+}
+
+template<typename T>
+__host__ __device__
+static inline
+T hypot_float_type(const T& y, const T& x);
+template<>
+__host__ __device__
+float hypot_float_type(const float& y, const float& x) {
+	return hypotf(y, x);
+}
+template<>
+__host__ __device__
+double hypot_float_type(const double& y, const double& x) {
+	return hypot(y, x);
 }
 
 template<typename T>
