@@ -320,17 +320,15 @@ bool BicycleCAvoid::dynamics_cell_helper(
     case 3: {   // Ux_dot = (Fxf + Fxr + Fx_drag) / m + r * Uy
       dx_i.resize(size_Ux);
       const beacls::FloatVec& Fx = us[1];
-      FLOAT_TYPE Fxi, Fxfi, Fxri, Fx_dragi;
+      FLOAT_TYPE Fxi, Fx_dragi;
 
       for (size_t i = 0; i < size_Ux; ++i) {
         if (Fx.size() == size_Ux)
           Fxi = Fx[i];
         else
           Fxi = Fx[0];
-        Fxfi = getFxf(Fxi);
-        Fxri = getFxr(Fxi);
         Fx_dragi = -X1::Cd0 - Ux[i] * (X1::Cd1 + X1::Cd2 * Ux[i]);
-        dx_i[i] = (Fxfi + Fxri + Fx_dragi) / X1::m + r[i] * Uy[i];
+        dx_i[i] = (Fxi + Fx_dragi) / X1::m + r[i] * Uy[i];
       }
     } break;
 
