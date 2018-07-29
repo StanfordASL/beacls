@@ -173,8 +173,8 @@ bool optCtrl_execute_cuda(
     const beacls::UVec& lam_Uy_uvec = deriv_uvecs[4];
     const beacls::UVec& lam_r_uvec  = deriv_uvecs[6];
 
-    beacls::reallocateAsSrc(d_uvec , deriv_uvecs[0]);
-    beacls::reallocateAsSrc(Fx_uvec, deriv_uvecs[0]);
+    beacls::reallocateAsSrc(d_uvec , Ux_uvec);
+    beacls::reallocateAsSrc(Fx_uvec, Ux_uvec);
 
     FLOAT_TYPE* d_ptr            = beacls::UVec_<FLOAT_TYPE>(d_uvec).ptr();
     FLOAT_TYPE* Fx_ptr           = beacls::UVec_<FLOAT_TYPE>(Fx_uvec).ptr();
@@ -343,8 +343,8 @@ bool optDstb_execute_cuda(
     const beacls::UVec& lam_w_uvec  = deriv_uvecs[2];
     const beacls::UVec& lam_Ax_uvec = deriv_uvecs[5];
 
-    beacls::reallocateAsSrc(w_uvec, deriv_uvecs[0]);
-    beacls::reallocateAsSrc(a_uvec, deriv_uvecs[0]);
+    beacls::reallocateAsSrc(w_uvec, V_uvec);
+    beacls::reallocateAsSrc(a_uvec, V_uvec);
 
     FLOAT_TYPE* w_ptr            = beacls::UVec_<FLOAT_TYPE>(w_uvec).ptr();
     FLOAT_TYPE* a_ptr            = beacls::UVec_<FLOAT_TYPE>(a_uvec).ptr();
