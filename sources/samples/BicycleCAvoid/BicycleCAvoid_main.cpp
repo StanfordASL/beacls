@@ -69,9 +69,14 @@ int main(int argc, char *argv[])
     if (argc > 7) {
         enable_user_defined_dynamics_on_gpu = (atoi(argv[7]) == 0) ? false : true;
     }
+    std::string output_filename;
+    if (argc > 8) {
+        output_filename = argv[8];
+    }
 
     //!< Grid
     //!< Choose this to be just big enough to cover the reachable set
+
 
 //  ..|'''.|  '||''|.   '||' '||''|.       .|'''.|  '||' |'''''||  '||''''|
 // .|'     '   ||   ||   ||   ||   ||      ||..  '   ||      .|'    ||  .
@@ -113,7 +118,7 @@ int main(int argc, char *argv[])
     std::cout << "     Uy: [" << gMin[4] << ", " << gMax[4] << "] (" << gN[4] << ")" << std::endl;
     std::cout << "      v: [" << gMin[5] << ", " << gMax[5] << "] (" << gN[5] << ")" << std::endl;
     std::cout << "      r: [" << gMin[6] << ", " << gMax[6] << "] (" << gN[6] << ")" << std::endl;
-    std::cout << "Running until tMax = " << tMax << std::endl;
+    std::cout << "Running until tMax = " << tMax << ", saving to: " << output_filename << std::endl;
     levelset::HJI_Grid* g = helperOC::createGrid(gMin, gMax, gN); // , beacls::IntegerVec{2});
 
 
@@ -122,6 +127,7 @@ int main(int argc, char *argv[])
 //   |  ||     ||  |   ||      ||  ||   ||    ||      ''|||.   ||''|       ||
 //  .''''|.     |||    '|.     ||  ||   ||    ||    .     '||  ||          ||
 // .|.  .||.     |      ''|...|'  .||. .||...|'     |'....|'  .||.....|   .||.
+
 
     // Ask Mo about this definition.
     const FLOAT_TYPE targetR = 3; //!< collision radius
@@ -181,6 +187,7 @@ int main(int argc, char *argv[])
     helperOC::ComputeGradients(g, helperOC::ApproximationAccuracy_veryHigh, execType)(
         derivC, derivL, derivR, g, data, data.size(), false, extraArgs.execParameters);
 
+
 // '||''''| '||' '||'      '||''''|         .|'''.|      |     '||'  '|' '||' '|.   '|'  ..|'''.|
 //  ||  .    ||   ||        ||  .           ||..  '     |||     '|.  .'   ||   |'|   |  .|'     '
 //  ||''|    ||   ||        ||''|            ''|||.    |  ||     ||  |    ||   | '|. |  ||    ....
@@ -188,9 +195,7 @@ int main(int argc, char *argv[])
 // .||.     .||. .||.....| .||.....|       |'....|'  .|.  .||.     |     .||. .|.   '|   ''|...'|
 
 
-    std::string BicycleCAvoid_filename("BicycleCAvoid.mat");
-
-    beacls::MatFStream* fs = beacls::openMatFStream(BicycleCAvoid_filename, beacls::MatOpenMode_Write);
+    beacls::MatFStream* fs = beacls::openMatFStream(output_filename, beacls::MatOpenMode_Write);
     beacls::MatVariable* struct_var = beacls::createMatStruct("avoid_set");
 
     beacls::IntegerVec Ns = g->get_Ns();
