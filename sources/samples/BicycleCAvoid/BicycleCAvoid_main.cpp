@@ -36,6 +36,11 @@ int main(int argc, char *argv[])
         }
     }
 
+    double tMax_double = 3;
+    if (argc > 2) {
+        tMax_double = atof(argv[2]);
+    }
+
     /////////////////////////////////////////////////////
     // Ask Mo about these settings
     // Not sure what all the settings are...?
@@ -45,36 +50,35 @@ int main(int argc, char *argv[])
     levelset::DelayedDerivMinMax_Type delayedDerivMinMax = levelset::DelayedDerivMinMax_Disable;
 
     bool useCuda = false;
-    if (argc > 2) {
-        useCuda = (atoi(argv[2]) == 0) ? false : true;
+    if (argc > 3) {
+        useCuda = (atoi(argv[3]) == 0) ? false : true;
     }
     int num_of_threads = 0;
-    if (argc > 3) {
-        num_of_threads = atoi(argv[3]);
+    if (argc > 4) {
+        num_of_threads = atoi(argv[4]);
     }
     int num_of_gpus = 0;
-    if (argc > 4) {
-        num_of_gpus = atoi(argv[4]);
+    if (argc > 5) {
+        num_of_gpus = atoi(argv[5]);
     }
     size_t line_length_of_chunk = 1;
-    if (argc > 5) {
-        line_length_of_chunk = atoi(argv[5]);
+    if (argc > 6) {
+        line_length_of_chunk = atoi(argv[6]);
     }
     bool enable_user_defined_dynamics_on_gpu = true;
-    if (argc > 6) {
-        enable_user_defined_dynamics_on_gpu = (atoi(argv[6]) == 0) ? false : true;
+    if (argc > 7) {
+        enable_user_defined_dynamics_on_gpu = (atoi(argv[7]) == 0) ? false : true;
     }
 
     //!< Grid
     //!< Choose this to be just big enough to cover the reachable set
 
-//  ..|'''.|  '||''|.   '||' '||''|.       .|'''.|  '||' |'''''||  '||''''|  
-// .|'     '   ||   ||   ||   ||   ||      ||..  '   ||      .|'    ||  .    
-// ||    ....  ||''|'    ||   ||    ||      ''|||.   ||     ||      ||''|    
-// '|.    ||   ||   |.   ||   ||    ||    .     '||  ||   .|'       ||       
-//  ''|...'|  .||.  '|' .||. .||...|'     |'....|'  .||. ||......| .||.....| 
-                                                                          
-                                                                          
+//  ..|'''.|  '||''|.   '||' '||''|.       .|'''.|  '||' |'''''||  '||''''|
+// .|'     '   ||   ||   ||   ||   ||      ||..  '   ||      .|'    ||  .
+// ||    ....  ||''|'    ||   ||    ||      ''|||.   ||     ||      ||''|
+// '|.    ||   ||   |.   ||   ||    ||    .     '||  ||   .|'       ||
+//  ''|...'|  .||.  '|' .||. .||...|'     |'....|'  .||. ||......| .||.....|
+
 
     // const beacls::FloatVec gMin = beacls::FloatVec{ (FLOAT_TYPE)-10, (FLOAT_TYPE)-15, (FLOAT_TYPE)0 };
     // const beacls::FloatVec gMax = beacls::FloatVec{ (FLOAT_TYPE)25, (FLOAT_TYPE)15, (FLOAT_TYPE)(2*M_PI) };
@@ -93,6 +97,14 @@ int main(int argc, char *argv[])
                                                     (FLOAT_TYPE)5,
                                                     (FLOAT_TYPE)12,
                                                     (FLOAT_TYPE)1 };
+
+    //!< Time
+    //!< Choose tMax to be large enough for the set to converge
+    // Ask Mo what are reasonable values
+    const FLOAT_TYPE tMax = tMax_double;
+    const FLOAT_TYPE dt = (FLOAT_TYPE)0.1;
+    const beacls::FloatVec tau = generateArithmeticSequence<FLOAT_TYPE>(0., dt, tMax);
+
     std::cout << "Running with grid sizes/bounds:" << std::endl;
     std::cout << "  x_rel: [" << gMin[0] << ", " << gMax[0] << "] (" << gN[0] << ")" << std::endl;
     std::cout << "  y_rel: [" << gMin[1] << ", " << gMax[1] << "] (" << gN[1] << ")" << std::endl;
@@ -101,27 +113,20 @@ int main(int argc, char *argv[])
     std::cout << "     Uy: [" << gMin[4] << ", " << gMax[4] << "] (" << gN[4] << ")" << std::endl;
     std::cout << "      v: [" << gMin[5] << ", " << gMax[5] << "] (" << gN[5] << ")" << std::endl;
     std::cout << "      r: [" << gMin[6] << ", " << gMax[6] << "] (" << gN[6] << ")" << std::endl;
+    std::cout << "Running until tMax = " << tMax << std::endl;
     levelset::HJI_Grid* g = helperOC::createGrid(gMin, gMax, gN); // , beacls::IntegerVec{2});
 
-    //!< Time
-    //!< Choose tMax to be large enough for the set to converge
-    // Ask Mo what are reasonable values
-    const FLOAT_TYPE tMax = 3;
-    const FLOAT_TYPE dt = (FLOAT_TYPE)0.1;
-    const beacls::FloatVec tau = generateArithmeticSequence<FLOAT_TYPE>(0., dt, tMax);
 
-                                                                                                                                               
+//     |     '||'  '|'  ..|''||   '||' '||''|.       .|'''.|  '||''''|  |''||''|
+//    |||     '|.  .'  .|'    ||   ||   ||   ||      ||..  '   ||  .       ||
+//   |  ||     ||  |   ||      ||  ||   ||    ||      ''|||.   ||''|       ||
+//  .''''|.     |||    '|.     ||  ||   ||    ||    .     '||  ||          ||
+// .|.  .||.     |      ''|...|'  .||. .||...|'     |'....|'  .||.....|   .||.
 
-//     |     '||'  '|'  ..|''||   '||' '||''|.       .|'''.|  '||''''|  |''||''| 
-//    |||     '|.  .'  .|'    ||   ||   ||   ||      ||..  '   ||  .       ||    
-//   |  ||     ||  |   ||      ||  ||   ||    ||      ''|||.   ||''|       ||    
-//  .''''|.     |||    '|.     ||  ||   ||    ||    .     '||  ||          ||    
-// .|.  .||.     |      ''|...|'  .||. .||...|'     |'....|'  .||.....|   .||.   
-                                                                              
     // Ask Mo about this definition.
     const FLOAT_TYPE targetR = 3; //!< collision radius
     beacls::FloatVec data0;
-    // ignore all dimensions except x_rel,y_rel 
+    // ignore all dimensions except x_rel,y_rel
     levelset::ShapeCylinder(beacls::IntegerVec{2, 3, 4, 5, 6}, beacls::FloatVec{ (FLOAT_TYPE)0, (FLOAT_TYPE)0}, targetR).execute(g, data0);
 
     //!< Additional solver parameters
@@ -170,19 +175,19 @@ int main(int argc, char *argv[])
     std::vector<beacls::FloatVec> derivR;
     beacls::FloatVec data;
     data.reserve(datas[0].size() * datas.size());
-    std::for_each(datas.cbegin(), datas.cend(), [&data](const auto& rhs) { 
+    std::for_each(datas.cbegin(), datas.cend(), [&data](const auto& rhs) {
         data.insert(data.end(), rhs.cbegin(), rhs.cend());
     });
     helperOC::ComputeGradients(g, helperOC::ApproximationAccuracy_veryHigh, execType)(
         derivC, derivL, derivR, g, data, data.size(), false, extraArgs.execParameters);
 
-// '||''''| '||' '||'      '||''''|         .|'''.|      |     '||'  '|' '||' '|.   '|'  ..|'''.|  
-//  ||  .    ||   ||        ||  .           ||..  '     |||     '|.  .'   ||   |'|   |  .|'     '  
-//  ||''|    ||   ||        ||''|            ''|||.    |  ||     ||  |    ||   | '|. |  ||    .... 
-//  ||       ||   ||        ||             .     '||  .''''|.     |||     ||   |   |||  '|.    ||  
-// .||.     .||. .||.....| .||.....|       |'....|'  .|.  .||.     |     .||. .|.   '|   ''|...'|  
-                                              
-                                                                                                
+// '||''''| '||' '||'      '||''''|         .|'''.|      |     '||'  '|' '||' '|.   '|'  ..|'''.|
+//  ||  .    ||   ||        ||  .           ||..  '     |||     '|.  .'   ||   |'|   |  .|'     '
+//  ||''|    ||   ||        ||''|            ''|||.    |  ||     ||  |    ||   | '|. |  ||    ....
+//  ||       ||   ||        ||             .     '||  .''''|.     |||     ||   |   |||  '|.    ||
+// .||.     .||. .||.....| .||.....|       |'....|'  .|.  .||.     |     .||. .|.   '|   ''|...'|
+
+
     std::string BicycleCAvoid_filename("BicycleCAvoid.mat");
 
     beacls::MatFStream* fs = beacls::openMatFStream(BicycleCAvoid_filename, beacls::MatOpenMode_Write);
