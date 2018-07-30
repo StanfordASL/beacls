@@ -111,7 +111,7 @@ public:
 
         const FLOAT_TYPE dOpt = ((B >= 0) - (B < 0))*sign*X1::d_max;
 
-        FLOAT_TYPE valueOpt = sign*1e6;
+        FLOAT_TYPE valueOpt = -sign*1e20;
         FLOAT_TYPE FxOpt = 0;
 
         for (size_t n = 0; n < 50; ++n) {    // 100% willing to unroll this loop
