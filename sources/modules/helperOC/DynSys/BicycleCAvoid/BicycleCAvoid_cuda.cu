@@ -209,7 +209,7 @@ bool optCtrl_execute_cuda(
                                             lam_r_dev_ptr);
             auto Iterator = thrust::make_zip_iterator(Tuple);
             thrust::for_each(thrust::cuda::par.on(d_stream), Iterator, Iterator + d_uvec.size(), Get_optCtrl(sign));
-        } else {
+        } else if (!beacls::is_cuda(lam_Ux_uvec) && !beacls::is_cuda(lam_Uy_uvec) && !beacls::is_cuda(lam_r_uvec)){
             const FLOAT_TYPE lam_Ux = lam_Ux_ptr[0];
             const FLOAT_TYPE lam_Uy = lam_Uy_ptr[0];
             const FLOAT_TYPE lam_r  = lam_r_ptr[0];
@@ -220,6 +220,9 @@ bool optCtrl_execute_cuda(
                                             r_dev_ptr);
             auto Iterator = thrust::make_zip_iterator(Tuple);
             thrust::for_each(thrust::cuda::par.on(d_stream), Iterator, Iterator + d_uvec.size(), Get_optCtrl_scalars(sign, lam_Ux, lam_Uy, lam_r));
+        } else {
+            std::cerr << __FILE__ << ":" << __LINE__ << ":" << __FUNCTION__ << " Invalid data size" << std::endl;
+            return false;
         }
     } else {
         std::cerr << "Unknown uMode!: " << uMode << std::endl;
@@ -370,7 +373,7 @@ bool optDstb_execute_cuda(
                                             lam_Ax_dev_ptr);
             auto Iterator = thrust::make_zip_iterator(Tuple);
             thrust::for_each(thrust::cuda::par.on(d_stream), Iterator, Iterator + w_uvec.size(), Get_optDstb(sign));
-        } else {
+        } else if (!beacls::is_cuda(lam_w_uvec) && !beacls::is_cuda(lam_Ax_uvec)) {
             const FLOAT_TYPE lam_w  = lam_w_ptr[0];
             const FLOAT_TYPE lam_Ax = lam_Ax_ptr[0];
             auto Tuple = thrust::make_tuple(w_dev_ptr,
@@ -378,6 +381,9 @@ bool optDstb_execute_cuda(
                                             V_dev_ptr);
             auto Iterator = thrust::make_zip_iterator(Tuple);
             thrust::for_each(thrust::cuda::par.on(d_stream), Iterator, Iterator + w_uvec.size(), Get_optDstb_scalars(sign, lam_w, lam_Ax));
+        } else {
+            std::cerr << __FILE__ << ":" << __LINE__ << ":" << __FUNCTION__ << " Invalid data size" << std::endl;
+            return false;
         }
     } else {
         std::cerr << "Unknown dMode!: " << dMode << std::endl;
@@ -845,7 +851,6 @@ bool dynamics_cell_helper_execute_cuda_dimAll(
     thrust::device_ptr<FLOAT_TYPE> dr_dev_ptr       = thrust::device_pointer_cast(dr_ptr);
 
     cudaStream_t dx_stream = beacls::get_stream(dx_rel_uvec);
-    dx_rel_uvec  .set_cudaStream(dx_rel_uvec.get_cudaStream());
     dy_rel_uvec  .set_cudaStream(dx_rel_uvec.get_cudaStream());
     dpsi_rel_uvec.set_cudaStream(dx_rel_uvec.get_cudaStream());
     dUx_uvec     .set_cudaStream(dx_rel_uvec.get_cudaStream());
@@ -875,12 +880,11 @@ bool dynamics_cell_helper_execute_cuda_dimAll(
     thrust::for_each(thrust::cuda::par.on(dx_stream), dst_src_Iterator_0, dst_src_Iterator_0 + x_rel_uvec.size(), Get_dynamics_x_rel_y_rel());
 
     // controls/disturbances that appear in more than one dynamics component are guaranteed to be cuda `UVec`s?
-    thrust::device_ptr<const FLOAT_TYPE> d_dev_ptr  = thrust::device_pointer_cast(d_ptr);
-    thrust::device_ptr<const FLOAT_TYPE> Fx_dev_ptr = thrust::device_pointer_cast(Fx_ptr);
-    beacls::synchronizeUVec(d_uvec);
-    beacls::synchronizeUVec(Fx_uvec);
-
     if (beacls::is_cuda(d_uvec) && beacls::is_cuda(Fx_uvec)) {
+        thrust::device_ptr<const FLOAT_TYPE> d_dev_ptr  = thrust::device_pointer_cast(d_ptr);
+        thrust::device_ptr<const FLOAT_TYPE> Fx_dev_ptr = thrust::device_pointer_cast(Fx_ptr);
+        beacls::synchronizeUVec(d_uvec);
+        // beacls::synchronizeUVec(Fx_uvec);
         auto dst_src_Tuple_1 = thrust::make_tuple(dUx_dev_ptr,
                                                   dUy_dev_ptr,
                                                   dr_dev_ptr,
@@ -900,7 +904,7 @@ bool dynamics_cell_helper_execute_cuda_dimAll(
         thrust::device_ptr<const FLOAT_TYPE> w_dev_ptr = thrust::device_pointer_cast(w_ptr);
         thrust::device_ptr<const FLOAT_TYPE> a_dev_ptr = thrust::device_pointer_cast(a_ptr);
         beacls::synchronizeUVec(w_uvec);    // not in PlaneCAvoid_cuda.cu
-        beacls::synchronizeUVec(a_uvec);    // not in PlaneCAvoid_cuda.cu
+        // beacls::synchronizeUVec(a_uvec);    // not in PlaneCAvoid_cuda.cu
         auto dst_src_Tuple_2 = thrust::make_tuple(dpsi_rel_dev_ptr,
                                                   dV_dev_ptr,
                                                   r_dev_ptr,
@@ -908,7 +912,7 @@ bool dynamics_cell_helper_execute_cuda_dimAll(
                                                   a_dev_ptr);
         auto dst_src_Iterator_2 = thrust::make_zip_iterator(dst_src_Tuple_2);
         thrust::for_each(thrust::cuda::par.on(dx_stream), dst_src_Iterator_2, dst_src_Iterator_2 + psi_rel_uvec.size(), Get_dynamics_psi_rel_V__W_A());
-    } else {
+    } else if (!beacls::is_cuda(w_uvec) && !beacls::is_cuda(a_uvec)) {
         const FLOAT_TYPE w = w_ptr[0];
         const FLOAT_TYPE a = a_ptr[0];
         auto dst_src_Tuple_2 = thrust::make_tuple(dpsi_rel_dev_ptr,
@@ -916,6 +920,9 @@ bool dynamics_cell_helper_execute_cuda_dimAll(
                                                   r_dev_ptr);
         auto dst_src_Iterator_2 = thrust::make_zip_iterator(dst_src_Tuple_2);
         thrust::for_each(thrust::cuda::par.on(dx_stream), dst_src_Iterator_2, dst_src_Iterator_2 + psi_rel_uvec.size(), Get_dynamics_psi_rel_V__w_a(w, a));
+    } else {
+        std::cerr << __FILE__ << ":" << __LINE__ << ":" << __FUNCTION__ << " Invalid data size" << std::endl;
+        return false;
     }
     return result;
 }
@@ -978,12 +985,15 @@ bool dynamics_cell_helper_execute_cuda(
                                              w_dev_ptr);
             auto Iterator2 = thrust::make_zip_iterator(Tuple2);
             thrust::for_each(thrust::cuda::par.on(dx_stream), Iterator2, Iterator2 + dx_uvec.size(), Get_dynamics_psi_rel__W());
-        } else {
+        } else if (!beacls::is_cuda(w_uvec)) {
             const FLOAT_TYPE w = beacls::UVec_<FLOAT_TYPE>(w_uvec).ptr()[0];
             auto Tuple2 = thrust::make_tuple(dx_dim_dev_ptr,
                                              r_dev_ptr);
             auto Iterator2 = thrust::make_zip_iterator(Tuple2);
             thrust::for_each(thrust::cuda::par.on(dx_stream), Iterator2, Iterator2 + dx_uvec.size(), Get_dynamics_psi_rel__w(w));
+        } else {
+            std::cerr << __FILE__ << ":" << __LINE__ << ":" << __FUNCTION__ << " Invalid data size" << std::endl;
+            return false;
         }
         break;
     case 3:    // dUx
@@ -997,7 +1007,7 @@ bool dynamics_cell_helper_execute_cuda(
                                              Fx_dev_ptr);
             auto Iterator3 = thrust::make_zip_iterator(Tuple3);
             thrust::for_each(thrust::cuda::par.on(dx_stream), Iterator3, Iterator3 + dx_uvec.size(), Get_dynamics_Ux__FX());
-        } else {
+        } else if (!beacls::is_cuda(Fx_uvec)) {
             const FLOAT_TYPE Fx = beacls::UVec_<FLOAT_TYPE>(Fx_uvec).ptr()[0];
             auto Tuple3 = thrust::make_tuple(dx_dim_dev_ptr,
                                              Ux_dev_ptr,
@@ -1005,10 +1015,13 @@ bool dynamics_cell_helper_execute_cuda(
                                              r_dev_ptr);
             auto Iterator3 = thrust::make_zip_iterator(Tuple3);
             thrust::for_each(thrust::cuda::par.on(dx_stream), Iterator3, Iterator3 + dx_uvec.size(), Get_dynamics_Ux__fx(Fx));
+        } else {
+            std::cerr << __FILE__ << ":" << __LINE__ << ":" << __FUNCTION__ << " Invalid data size" << std::endl;
+            return false;
         }
         break;
     case 4:    // dUy
-        if (beacls::is_cuda(Fx_uvec) && beacls::is_cuda(d_uvec)) {
+        if (beacls::is_cuda(d_uvec) && beacls::is_cuda(Fx_uvec)) {
             thrust::device_ptr<const FLOAT_TYPE> d_dev_ptr  = thrust::device_pointer_cast(beacls::UVec_<FLOAT_TYPE>(d_uvec).ptr());
             thrust::device_ptr<const FLOAT_TYPE> Fx_dev_ptr = thrust::device_pointer_cast(beacls::UVec_<FLOAT_TYPE>(Fx_uvec).ptr());
             beacls::synchronizeUVec(d_uvec);
@@ -1021,7 +1034,7 @@ bool dynamics_cell_helper_execute_cuda(
                                              Fx_dev_ptr);
             auto Iterator4 = thrust::make_zip_iterator(Tuple4);
             thrust::for_each(thrust::cuda::par.on(dx_stream), Iterator4, Iterator4 + dx_uvec.size(), Get_dynamics_Uy__D_FX());
-        } else {
+        } else if (!beacls::is_cuda(d_uvec) && !beacls::is_cuda(Fx_uvec)) {
             const FLOAT_TYPE d  = beacls::UVec_<FLOAT_TYPE>(d_uvec).ptr()[0];
             const FLOAT_TYPE Fx = beacls::UVec_<FLOAT_TYPE>(Fx_uvec).ptr()[0];
             auto Tuple4 = thrust::make_tuple(dx_dim_dev_ptr,
@@ -1030,6 +1043,9 @@ bool dynamics_cell_helper_execute_cuda(
                                              r_dev_ptr);
             auto Iterator4 = thrust::make_zip_iterator(Tuple4);
             thrust::for_each(thrust::cuda::par.on(dx_stream), Iterator4, Iterator4 + dx_uvec.size(), Get_dynamics_Uy__d_fx(d, Fx));
+        } else {
+            std::cerr << __FILE__ << ":" << __LINE__ << ":" << __FUNCTION__ << " Invalid data size" << std::endl;
+            return false;
         }
         break;
     case 5:    // dV
@@ -1040,15 +1056,18 @@ bool dynamics_cell_helper_execute_cuda(
                                              a_dev_ptr);
             auto Iterator5 = thrust::make_zip_iterator(Tuple5);
             thrust::for_each(thrust::cuda::par.on(dx_stream), Iterator5, Iterator5 + dx_uvec.size(), Get_dynamics_V__A());
-        } else {
+        } else if (!beacls::is_cuda(a_uvec)) {
             const FLOAT_TYPE a = beacls::UVec_<FLOAT_TYPE>(a_uvec).ptr()[0];
             auto Tuple5 = thrust::make_tuple(dx_dim_dev_ptr);
             auto Iterator5 = thrust::make_zip_iterator(Tuple5);
             thrust::for_each(thrust::cuda::par.on(dx_stream), Iterator5, Iterator5 + dx_uvec.size(), Get_dynamics_V__a(a));
+        } else {
+            std::cerr << __FILE__ << ":" << __LINE__ << ":" << __FUNCTION__ << " Invalid data size" << std::endl;
+            return false;
         }
         break;
     case 6:    // dr
-        if (beacls::is_cuda(Fx_uvec) && beacls::is_cuda(d_uvec)) {
+        if (beacls::is_cuda(d_uvec) && beacls::is_cuda(Fx_uvec)) {
             thrust::device_ptr<const FLOAT_TYPE> Fx_dev_ptr = thrust::device_pointer_cast(beacls::UVec_<FLOAT_TYPE>(Fx_uvec).ptr());
             thrust::device_ptr<const FLOAT_TYPE> d_dev_ptr  = thrust::device_pointer_cast(beacls::UVec_<FLOAT_TYPE>(d_uvec).ptr());
             beacls::synchronizeUVec(Fx_uvec);
@@ -1061,7 +1080,7 @@ bool dynamics_cell_helper_execute_cuda(
                                              Fx_dev_ptr);
             auto Iterator6 = thrust::make_zip_iterator(Tuple6);
             thrust::for_each(thrust::cuda::par.on(dx_stream), Iterator6, Iterator6 + dx_uvec.size(), Get_dynamics_r__D_FX());
-        } else {
+        } else if (!beacls::is_cuda(d_uvec) && !beacls::is_cuda(Fx_uvec)) {
             const FLOAT_TYPE d  = beacls::UVec_<FLOAT_TYPE>(d_uvec).ptr()[0];
             const FLOAT_TYPE Fx = beacls::UVec_<FLOAT_TYPE>(Fx_uvec).ptr()[0];
             auto Tuple6 = thrust::make_tuple(dx_dim_dev_ptr,
@@ -1070,6 +1089,9 @@ bool dynamics_cell_helper_execute_cuda(
                                              r_dev_ptr);
             auto Iterator6 = thrust::make_zip_iterator(Tuple6);
             thrust::for_each(thrust::cuda::par.on(dx_stream), Iterator6, Iterator6 + dx_uvec.size(), Get_dynamics_r__d_fx(d, Fx));
+        } else {
+            std::cerr << __FILE__ << ":" << __LINE__ << ":" << __FUNCTION__ << " Invalid data size" << std::endl;
+            return false;
         }
         break;
     default:
