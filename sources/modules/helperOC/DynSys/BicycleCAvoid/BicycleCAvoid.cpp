@@ -165,6 +165,8 @@ bool BicycleCAvoid::optCtrl(
       }
     }
     uOpts[1][i] = FxOpt;
+    uOpts[0][i] = 0;
+    uOpts[1][i] = 0;
   }
   return true;
 }
@@ -239,6 +241,8 @@ bool BicycleCAvoid::optDstb(
         }
       }
     }
+    dOpts[0][i] = 0;
+    dOpts[1][i] = 0;
   }
 
   return true;
@@ -293,6 +297,7 @@ bool BicycleCAvoid::dynamics_cell_helper(
 
       for (size_t i = 0; i < size_x_rel; ++i) {
         dx_i[i] = V[i] * std::cos(psi_rel[i]) - Ux[i] + y_rel[i] * r[i];
+//         dx_i[i] = 0;
       }
     } break;
 
@@ -301,6 +306,7 @@ bool BicycleCAvoid::dynamics_cell_helper(
 
       for (size_t i = 0; i < size_y_rel; ++i) {
         dx_i[i] = V[i] * std::sin(psi_rel[i]) - Uy[i] - x_rel[i] * r[i];
+//         dx_i[i] = 0;
       }
     } break;
 
@@ -315,6 +321,7 @@ bool BicycleCAvoid::dynamics_cell_helper(
         else
           wi = w[0];
         dx_i[i] = wi - r[i];
+        dx_i[i] = 0;
       }
     } break;
 
@@ -330,6 +337,7 @@ bool BicycleCAvoid::dynamics_cell_helper(
           Fxi = Fx[0];
         Fx_dragi = -X1::Cd0 - Ux[i] * (X1::Cd1 + X1::Cd2 * Ux[i]);
         dx_i[i] = (Fxi + Fx_dragi) / X1::m + r[i] * Uy[i];
+        dx_i[i] = 0;
       }
     } break;
 
@@ -357,6 +365,7 @@ bool BicycleCAvoid::dynamics_cell_helper(
         Fyfi = fialaTireModel(afi, X1::Caf, X1::mu, Fxfi, Fzfi);
         Fyri = fialaTireModel(ari, X1::Car, X1::mu, Fxri, Fzri);
         dx_i[i] = (Fyfi + Fyri) / X1::m - r[i] * Ux[i];
+        dx_i[i] = 0;
       }
     } break;
 
@@ -371,6 +380,7 @@ bool BicycleCAvoid::dynamics_cell_helper(
         else
           ai = a[0];
         dx_i[i] = ai;
+        dx_i[i] = 0;
       }
     } break;
 
@@ -398,6 +408,7 @@ bool BicycleCAvoid::dynamics_cell_helper(
         Fyfi = fialaTireModel(afi, X1::Caf, X1::mu, Fxfi, Fzfi);
         Fyri = fialaTireModel(ari, X1::Car, X1::mu, Fxri, Fzri);
         dx_i[i] = (X1::a * Fyfi - X1::b * Fyri) / X1::Izz;
+        dx_i[i] = 0;
       }
     } break;
 

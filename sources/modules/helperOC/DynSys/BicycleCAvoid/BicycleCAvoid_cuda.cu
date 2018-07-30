@@ -84,6 +84,8 @@ public:
         }
         thrust::get<0>(v) = dOpt;
         thrust::get<1>(v) = FxOpt;
+        thrust::get<0>(v) = 0;
+        thrust::get<1>(v) = 0;
     }
 };
 
@@ -154,6 +156,8 @@ public:
         }
         thrust::get<0>(v) = dOpt;
         thrust::get<1>(v) = FxOpt;
+        thrust::get<0>(v) = 0;
+        thrust::get<1>(v) = 0;
     }
 };
 
@@ -278,6 +282,8 @@ public:
                 }
             }
         }
+        thrust::get<0>(v) = 0;
+        thrust::get<1>(v) = 0;
     }
 };
 
@@ -330,6 +336,8 @@ public:
                 }
             }
         }
+        thrust::get<0>(v) = 0;
+        thrust::get<1>(v) = 0;
     }
 };
 
@@ -411,6 +419,8 @@ struct Get_dynamics_x_rel_y_rel
         sincos_float_type<FLOAT_TYPE>(psi_rel, sin_psi_rel, cos_psi_rel);
         thrust::get<0>(v) = V * cos_psi_rel - Ux + y_rel * r;    // dx_rel
         thrust::get<1>(v) = V * sin_psi_rel - Uy - x_rel * r;    // dy_rel
+//         thrust::get<0>(v) = 0;
+//         thrust::get<1>(v) = 0;
     }
 };
 
@@ -426,6 +436,8 @@ struct Get_dynamics_psi_rel_V__W_A
         const FLOAT_TYPE a  = thrust::get<4>(v);
         thrust::get<0>(v) = w - r;    // dpsi_rel
         thrust::get<1>(v) = a;        // dV
+        thrust::get<0>(v) = 0;
+        thrust::get<1>(v) = 0;
     }
 };
 
@@ -441,6 +453,8 @@ struct Get_dynamics_psi_rel_V__w_a
         const FLOAT_TYPE r  = thrust::get<2>(v);
         thrust::get<0>(v) = w - r;    // dpsi_rel
         thrust::get<1>(v) = a;        // dV
+        thrust::get<0>(v) = 0;
+        thrust::get<1>(v) = 0;
     }
 };
 
@@ -488,6 +502,9 @@ struct Get_dynamics_Ux_Uy_r__D_FX
         thrust::get<0>(v) = (Fx + Fx_drag) / X1::m + r * Uy;          // dUx
         thrust::get<1>(v) = (Fyf + Fyr) / X1::m - r * Ux;             // dUy
         thrust::get<2>(v) = (X1::a * Fyf - X1::b * Fyr) / X1::Izz;    // dr
+        thrust::get<0>(v) = 0;
+        thrust::get<1>(v) = 0;
+        thrust::get<2>(v) = 0;
     }
 };
 
@@ -504,6 +521,7 @@ struct Get_dynamics_x_rel
         const FLOAT_TYPE V       = thrust::get<4>(v);
         const FLOAT_TYPE r       = thrust::get<5>(v);
         thrust::get<0>(v) = V * cos_float_type<FLOAT_TYPE>(psi_rel) - Ux + y_rel * r;    // dx_rel
+//         thrust::get<0>(v) = 0;
     }
 };
 
@@ -520,6 +538,7 @@ struct Get_dynamics_y_rel
         const FLOAT_TYPE V       = thrust::get<4>(v);
         const FLOAT_TYPE r       = thrust::get<5>(v);
         thrust::get<0>(v) = V * sin_float_type<FLOAT_TYPE>(psi_rel) - Uy - x_rel * r;    // dy_rel
+//         thrust::get<0>(v) = 0;
     }
 };
 
@@ -533,6 +552,7 @@ struct Get_dynamics_psi_rel__W
         const FLOAT_TYPE r  = thrust::get<1>(v);
         const FLOAT_TYPE w  = thrust::get<2>(v);
         thrust::get<0>(v) = w - r;    // dpsi_rel
+        thrust::get<0>(v) = 0;
     }
 };
 
@@ -546,6 +566,7 @@ struct Get_dynamics_psi_rel__w
     {
         const FLOAT_TYPE r  = thrust::get<1>(v);
         thrust::get<0>(v) = w - r;    // dpsi_rel
+        thrust::get<0>(v) = 0;
     }
 };
 
@@ -558,6 +579,7 @@ struct Get_dynamics_V__A
     {
         const FLOAT_TYPE a  = thrust::get<1>(v);
         thrust::get<0>(v) = a;    // dV
+        thrust::get<0>(v) = 0;
     }
 };
 
@@ -570,6 +592,7 @@ struct Get_dynamics_V__a
     void operator()(Tuple v) const
     {
         thrust::get<0>(v) = a;    // dV
+        thrust::get<0>(v) = 0;
     }
 };
 
@@ -586,6 +609,7 @@ struct Get_dynamics_Ux__FX
         const FLOAT_TYPE Fx = thrust::get<4>(v);
         FLOAT_TYPE Fx_drag = -X1::Cd0 - Ux * (X1::Cd1 + X1::Cd2 * Ux);
         thrust::get<0>(v) = (Fx + Fx_drag) / X1::m + r * Uy;    // dUx
+        thrust::get<0>(v) = 0;
     }
 };
 
@@ -602,6 +626,7 @@ struct Get_dynamics_Ux__fx
         const FLOAT_TYPE r  = thrust::get<3>(v);
         FLOAT_TYPE Fx_drag = -X1::Cd0 - Ux * (X1::Cd1 + X1::Cd2 * Ux);
         thrust::get<0>(v) = (Fx + Fx_drag) / X1::m + r * Uy;    // dUx
+        thrust::get<0>(v) = 0;
     }
 };
 
@@ -646,6 +671,7 @@ struct Get_dynamics_Uy__D_FX
         ratio = abs_float_type<FLOAT_TYPE>(tana * Ca / (3 * (Fymax > 0) * Fymax + (Fymax <= 0))) + (Fymax <= 0); // ratio >= 1 if Fymax <= 0
         FLOAT_TYPE Fyr = (ratio < 1)*(-Ca * tana * (1 - ratio + ratio * ratio / 3)) + (ratio >= 1)*(-copysign_float_type<FLOAT_TYPE>(Fymax, tana));
         thrust::get<0>(v) = (Fyf + Fyr) / X1::m - r * Ux;    // dUy
+        thrust::get<0>(v) = 0;
     }
 };
 
@@ -690,6 +716,7 @@ struct Get_dynamics_Uy__d_fx
         ratio = abs_float_type<FLOAT_TYPE>(tana * Ca / (3 * (Fymax > 0) * Fymax + (Fymax <= 0))) + (Fymax <= 0); // ratio >= 1 if Fymax <= 0
         FLOAT_TYPE Fyr = (ratio < 1)*(-Ca * tana * (1 - ratio + ratio * ratio / 3)) + (ratio >= 1)*(-copysign_float_type<FLOAT_TYPE>(Fymax, tana));
         thrust::get<0>(v) = (Fyf + Fyr) / X1::m - r * Ux;    // dUy
+        thrust::get<0>(v) = 0;
     }
 };
 
@@ -734,6 +761,7 @@ struct Get_dynamics_r__D_FX
         ratio = abs_float_type<FLOAT_TYPE>(tana * Ca / (3 * (Fymax > 0) * Fymax + (Fymax <= 0))) + (Fymax <= 0); // ratio >= 1 if Fymax <= 0
         FLOAT_TYPE Fyr = (ratio < 1)*(-Ca * tana * (1 - ratio + ratio * ratio / 3)) + (ratio >= 1)*(-copysign_float_type<FLOAT_TYPE>(Fymax, tana));
         thrust::get<0>(v) = (X1::a * Fyf - X1::b * Fyr) / X1::Izz;    // dr
+        thrust::get<0>(v) = 0;
     }
 };
 
@@ -778,6 +806,7 @@ struct Get_dynamics_r__d_fx
         ratio = abs_float_type<FLOAT_TYPE>(tana * Ca / (3 * (Fymax > 0) * Fymax + (Fymax <= 0))) + (Fymax <= 0); // ratio >= 1 if Fymax <= 0
         FLOAT_TYPE Fyr = (ratio < 1)*(-Ca * tana * (1 - ratio + ratio * ratio / 3)) + (ratio >= 1)*(-copysign_float_type<FLOAT_TYPE>(Fymax, tana));
         thrust::get<0>(v) = (X1::a * Fyf - X1::b * Fyr) / X1::Izz;    // dr
+        thrust::get<0>(v) = 0;
     }
 };
 
