@@ -13,6 +13,8 @@
 #include <iomanip>
 #include <cstring>
 
+const FLOAT_TYPE inf = std::numeric_limits<FLOAT_TYPE>::infinity();
+
 /**
     @brief Tests the Bicycle class by computing a reachable set and then computing the optimal trajectory from the reachable set.
     */
@@ -134,7 +136,7 @@ int main(int argc, char *argv[])
     beacls::FloatVec data0;
     // ignore all dimensions except x_rel,y_rel
     // levelset::ShapeCylinder(beacls::IntegerVec{2, 3, 4, 5, 6}, beacls::FloatVec{ (FLOAT_TYPE)0, (FLOAT_TYPE)0}, targetR).execute(g, data0);
-    levelset::ShapeRectangleByCorner(beacls::FloatVec{-3., -1.5, -inf, -inf, -inf, -inf, -inf}, beacls::FloatVec{3., 1.5, inf, inf, inf, inf, inf}).execute(g, data0)
+    levelset::ShapeRectangleByCorner(beacls::FloatVec{-3., -1.5, -inf, -inf, -inf, -inf, -inf}, beacls::FloatVec{3., 1.5, inf, inf, inf, inf, inf}).execute(g, data0);
     //!< Additional solver parameters
     helperOC::DynSysSchemeData* sD = new helperOC::DynSysSchemeData;
     sD->set_grid(g);
