@@ -130,11 +130,11 @@ int main(int argc, char *argv[])
 
 
     // Ask Mo about this definition.
-    const FLOAT_TYPE targetR = 3; //!< collision radius
+    // const FLOAT_TYPE targetR = 3; //!< collision radius
     beacls::FloatVec data0;
     // ignore all dimensions except x_rel,y_rel
-    levelset::ShapeCylinder(beacls::IntegerVec{2, 3, 4, 5, 6}, beacls::FloatVec{ (FLOAT_TYPE)0, (FLOAT_TYPE)0}, targetR).execute(g, data0);
-
+    // levelset::ShapeCylinder(beacls::IntegerVec{2, 3, 4, 5, 6}, beacls::FloatVec{ (FLOAT_TYPE)0, (FLOAT_TYPE)0}, targetR).execute(g, data0);
+    levelset::ShapeRectangleByCorner(beacls::FloatVec{-3., -1.5, -inf, -inf, -inf, -inf, -inf}, beacls::FloatVec{3., 1.5, inf, inf, inf, inf, inf}).execute(g, data0)
     //!< Additional solver parameters
     helperOC::DynSysSchemeData* sD = new helperOC::DynSysSchemeData;
     sD->set_grid(g);
