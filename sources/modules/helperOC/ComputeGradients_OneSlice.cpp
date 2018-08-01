@@ -45,7 +45,7 @@ void helperOC::ComputeGradients_OneSlice_impl::execute(
 		const size_t third_line_index = (inner_line_index / second_dimension_loop_size) % third_dimension_loop_size;
 		actual_num_of_slices = std::min(num_of_slices, third_dimension_loop_size - third_line_index);
 		const size_t line_begin = inner_line_index;
-		size_t expected_result_offset = line_begin * first_dimension_loop_size + time_offset;
+		const size_t expected_result_offset = line_begin * first_dimension_loop_size + time_offset;
 		size_t slices_result_size = actual_chunk_size * first_dimension_loop_size*actual_num_of_slices;
 		size_t chunk_result_size = actual_chunk_size * first_dimension_loop_size;
 
@@ -98,24 +98,31 @@ void helperOC::ComputeGradients_OneSlice_impl::execute(
 //			beacls::synchronizeUVec(deriv_c_line_uvecs[dim]);
 //			beacls::synchronizeUVec(deriv_l_line_uvecs[dim]);
 //			beacls::synchronizeUVec(deriv_r_line_uvecs[dim]);
-			beacls::copyUVecToHostAsync(derivC[dim].data() + expected_result_offset, deriv_c_line_uvecs[dim]);
+			if (derivC.size() > dim && derivC[dim].size() != 0)
+				beacls::copyUVecToHostAsync(derivC[dim].data() + expected_result_offset, deriv_c_line_uvecs[dim]);
+		}
+		if (derivL.size() > dim) {
+			for (size_t dim = 0; dim < num_of_dimensions; ++dim) {
+				//			beacls::synchronizeUVec(deriv_c_line_uvecs[dim]);
+				//			beacls::synchronizeUVec(deriv_l_line_uvecs[dim]);
+				//			beacls::synchronizeUVec(deriv_r_line_uvecs[dim]);
+				if (derivL[dim].size() != 0)
+					beacls::copyUVecToHostAsync(derivL[dim].data() + expected_result_offset, deriv_l_line_uvecs[dim]);
+			}
+		}
+		if (derivR.size() > dim) {
+			for (size_t dim = 0; dim < num_of_dimensions; ++dim) {
+				if (derivR[dim].size() != 0)
+					beacls::copyUVecToHostAsync(derivR[dim].data() + expected_result_offset, deriv_r_line_uvecs[dim]);
+			}
 		}
 		for (size_t dim = 0; dim < num_of_dimensions; ++dim) {
-			//			beacls::synchronizeUVec(deriv_c_line_uvecs[dim]);
-			//			beacls::synchronizeUVec(deriv_l_line_uvecs[dim]);
-			//			beacls::synchronizeUVec(deriv_r_line_uvecs[dim]);
-			beacls::copyUVecToHostAsync(derivL[dim].data() + expected_result_offset, deriv_l_line_uvecs[dim]);
-		}
-		for (size_t dim = 0; dim < num_of_dimensions; ++dim) {
-			//			beacls::synchronizeUVec(deriv_c_line_uvecs[dim]);
-			//			beacls::synchronizeUVec(deriv_l_line_uvecs[dim]);
-			//			beacls::synchronizeUVec(deriv_r_line_uvecs[dim]);
-			beacls::copyUVecToHostAsync(derivR[dim].data() + expected_result_offset, deriv_r_line_uvecs[dim]);
-		}
-		for (size_t dim = 0; dim < num_of_dimensions; ++dim) {
-			beacls::synchronizeUVec(deriv_c_line_uvecs[dim]);
-//			beacls::synchronizeUVec(deriv_l_line_uvecs[dim]);
-//			beacls::synchronizeUVec(deriv_r_line_uvecs[dim]);
+			if (derivC.size() > dim && derivC[dim].size() != 0)
+				beacls::synchronizeUVec(deriv_c_line_uvecs[dim]);
+			if (derivL.size() > dim && derivL[dim].size() != 0)
+				beacls::synchronizeUVec(deriv_l_line_uvecs[dim]);
+			if (derivR.size() > dim && derivR[dim].size() != 0)
+				beacls::synchronizeUVec(deriv_r_line_uvecs[dim]);
 		}
 	}
 }

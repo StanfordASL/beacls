@@ -65,7 +65,10 @@ bool helperOC::ComputeOptTraj_impl::operator()(
 	) {
 	const bool visualize = extraArgs.visualize;
 
-	const helperOC::ExecParameters execParameters = extraArgs.execParameters;
+	helperOC::ExecParameters execParameters = extraArgs.execParameters;
+	execParameters.calcDerivC = true;
+	execParameters.calcDerivL = false;
+	execParameters.calcDerivR = false;
 
 	//!< Visualization
 #if defined(VISUALIZE_BY_OPENCV)
@@ -110,8 +113,6 @@ bool helperOC::ComputeOptTraj_impl::operator()(
 	}
 	if (!computeGradients) computeGradients = new ComputeGradients(grid, helperOC::ApproximationAccuracy_veryHigh, execType);
 	std::vector<beacls::FloatVec> derivC;
-	std::vector<beacls::FloatVec> derivL;
-	std::vector<beacls::FloatVec> derivR;
 	std::vector<beacls::FloatVec> deriv;
 	std::vector<beacls::FloatVec> u(dynSys->get_nu());
 	beacls::IntegerVec u_sizes(dynSys->get_nu());
@@ -230,12 +231,20 @@ bool helperOC::ComputeOptTraj_impl::operator()(
 		}
 		//!<  Update trajectory
 		if (!BRS_at_t.empty()) {
-			computeGradients->operator()(derivC, derivL, derivR, grid, BRS_at_t, BRS_at_t.size(), false, execParameters);
+			std::vector<beacls::FloatVec> derivL;
+			std::vector<beacls::FloatVec> derivR;
+			computeGradients->operator()(
+				derivC,
+				derivL,
+				derivR,
+				grid,
+				BRS_at_t,
+				BRS_at_t.size(),
+				false,
+				execParameters);
 		}
 		else {
 			derivC.clear();
-			derivL.clear();
-			derivR.clear();
 		}
 		for (size_t j = 0; j < subSamples; ++j) {
 			x = dynSys->get_x();

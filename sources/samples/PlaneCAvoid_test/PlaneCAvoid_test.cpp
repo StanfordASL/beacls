@@ -149,6 +149,8 @@ int main(int argc, char *argv[])
 	std::for_each(datas.cbegin(), datas.cend(), [&data](const auto& rhs) { 
 		data.insert(data.end(), rhs.cbegin(), rhs.cend());
 	});
+	extraArgs.execParameters.calcDerivL = false;
+	extraArgs.execParameters.calcDerivR = false;
 	helperOC::ComputeGradients(g, helperOC::ApproximationAccuracy_veryHigh, execType)(
 		derivC, derivL, derivR, g, data, data.size(), false, extraArgs.execParameters);
 

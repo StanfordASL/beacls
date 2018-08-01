@@ -181,10 +181,13 @@ int main(int argc, char *argv[])
   hjipde->solve(data, stoptau, extraOuts, targets, tau, schemeData, 
     helperOC::HJIPDE::MinWithType_None, extraArgs);
 
-  // std::vector<beacls::FloatVec> P, derivL, derivR;
+  // std::vector<beacls::FloatVec> P;
 
   // Compute gradient
   // if (!TTR.empty()) {
+  // std::vector<beacls::FloatVec > derivL, derivR;
+  // extraArgs.execParameters.calcDerivL = false;
+  // extraArgs.execParameters.calcDerivR = false;
   //   helperOC::ExtractCostates* extractCostates = new helperOC::ExtractCostates(schemeData->accuracy);
   //   extractCostates->operator()(P, derivL, derivR, g, TTR, TTR.size(), false, extraArgs.execParameters);
   //   if (extractCostates) delete extractCostates;
