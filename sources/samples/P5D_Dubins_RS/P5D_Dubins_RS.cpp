@@ -145,16 +145,41 @@ int main(int argc, char *argv[])
   
   targets[0].assign(numel, 0.);
 
+#if defined(ADHOCK_XS)
   for (size_t dim = 0; dim < num_dim; ++dim) {
-    const beacls::FloatVec &xs = g->get_xs(dim);
-
-    if (dim == 0 || dim == 1) { 
-      // target(1) = - x0^2 - x1^2
-      std::transform(xs.cbegin(), xs.cend(), targets[0].begin(), 
-          targets[0].begin(), [](const auto &xs_i, const auto &tar_i) {
-          return tar_i - std::pow(xs_i, 2); });
-    }
+	  if (dim == 0 || dim == 1) {
+		  const beacls::FloatVec& vs = g->get_vs(dim);
+		  size_t inner_dimensions_loop_size = g->get_inner_dimensions_loop_size(dim);
+		  size_t outer_dimensions_loop_size = g->get_outer_dimensions_loop_size(dim);
+		  size_t target_dimension_loop_size = g->get_target_dimension_loop_size(dim);
+		  for (size_t outer_dimensions_loop_index = 0; outer_dimensions_loop_index < outer_dimensions_loop_size; ++outer_dimensions_loop_index) {
+			  const size_t outer_dimensions_loop_offset = outer_dimensions_loop_index * inner_dimensions_loop_size * target_dimension_loop_size;
+			  for (size_t v_index = 0; v_index < vs.size(); ++v_index) {
+				  const FLOAT_TYPE v = vs[v_index];
+				  const size_t offset = v_index * inner_dimensions_loop_size + outer_dimensions_loop_offset;
+				  const FLOAT_TYPE v2 = std::pow(v, 2);
+				  std::transform(
+					  targets[0].cbegin() + offset,
+					  targets[0].cbegin() + offset + inner_dimensions_loop_size,
+					  targets[0].begin() + offset, ([v2](auto &tar_i) {
+					  return tar_i - v2;
+				  }));
+			  }
+		  }
+	  }
   }
+#else
+  for (size_t dim = 0; dim < num_dim; ++dim) {
+	  const beacls::FloatVec &xs = g->get_xs(dim);
+
+	  if (dim == 0 || dim == 1) {
+		  // target(1) = - x0^2 - x1^2
+		  std::transform(xs.cbegin(), xs.cend(), targets[0].begin(),
+			  targets[0].begin(), [](const auto &xs_i, const auto &tar_i) {
+			  return tar_i - std::pow(xs_i, 2); });
+	  }
+  }
+#endif
   
   helperOC::HJIPDE_extraArgs extraArgs;
   helperOC::HJIPDE_extraOuts extraOuts;
