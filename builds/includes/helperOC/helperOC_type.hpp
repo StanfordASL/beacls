@@ -106,6 +106,9 @@ namespace helperOC {
 		levelset::DelayedDerivMinMax_Type delayedDerivMinMax;	//!< Use last step's min/max of derivatives, and skip 2nd pass.
 		bool useCuda;//!< Execute type CPU Vector or GPU.
 		bool enable_user_defined_dynamics_on_gpu; //!< Flag for user defined dynamics function on gpu
+		bool calcDerivC; //!< calculate derivC
+		bool calcDerivL; //!< calculate derivL
+		bool calcDerivR; //!< calculate derivR
 		ExecParameters() :
 			line_length_of_chunk(0),
 			num_of_threads(0),
@@ -113,7 +116,10 @@ namespace helperOC {
 			calcTTR(false),
 			delayedDerivMinMax(levelset::DelayedDerivMinMax_Disable),
 			useCuda(false),
-			enable_user_defined_dynamics_on_gpu(true)
+			enable_user_defined_dynamics_on_gpu(true),
+			calcDerivC(true),
+			calcDerivL(true),
+			calcDerivR(true)
 		{}
 		PREFIX_VC_DLL
 			bool operator==(const ExecParameters& rhs) const;

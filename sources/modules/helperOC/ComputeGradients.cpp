@@ -87,9 +87,15 @@ bool helperOC::ComputeGradients::operator()(
 	}
 	const size_t num_of_dimensions = grid->get_num_of_dimensions();
 	//!< Go through each dimension and compute the gradient in each
-	if (derivC.size() != num_of_dimensions) derivC.resize(num_of_dimensions);
-	if (derivL.size() != num_of_dimensions) derivL.resize(num_of_dimensions);
-	if (derivR.size() != num_of_dimensions) derivR.resize(num_of_dimensions);
+	if (execParameters.calcDerivC)
+		if (derivC.size() != num_of_dimensions)
+			derivC.resize(num_of_dimensions);
+	if (execParameters.calcDerivL)
+		if (derivL.size() != num_of_dimensions)
+			derivL.resize(num_of_dimensions);
+	if (execParameters.calcDerivR)
+		if (derivR.size() != num_of_dimensions)
+			derivR.resize(num_of_dimensions);
 
 	const size_t num_of_elements = grid->get_sum_of_elems();
 	const size_t tau_length = (num_of_elements == data_length) ? 1 : data_length / num_of_elements;
@@ -106,9 +112,16 @@ bool helperOC::ComputeGradients::operator()(
 			modified_data[i] = d;
 	}
 //	size_t chunk_size = line_length_of_chunk;
-	for_each(derivC.begin(), derivC.end(), ([data_length](auto& rhs) { if (rhs.size() != data_length) rhs.resize(data_length); }));
-	for_each(derivL.begin(), derivL.end(), ([data_length](auto& rhs) { if (rhs.size() != data_length) rhs.resize(data_length); }));
-	for_each(derivR.begin(), derivR.end(), ([data_length](auto& rhs) { if (rhs.size() != data_length) rhs.resize(data_length); }));
+	const size_t derivC_length = execParameters.calcDerivC ? data_length : 0;
+	const size_t derivL_length = execParameters.calcDerivL ? data_length : 0;
+	const size_t derivR_length = execParameters.calcDerivR ? data_length : 0;
+	for_each(derivC.begin(), derivC.end(), ([derivC_length](auto& rhs) {
+		if (rhs.size() != derivC_length) rhs.resize(derivC_length); }));
+	for_each(derivL.begin(), derivL.end(), ([derivL_length](auto& rhs) {
+		if (rhs.size() != derivL_length) rhs.resize(derivL_length); }));
+	for_each(derivR.begin(), derivR.end(), ([derivR_length](auto& rhs) {
+		if (rhs.size() != derivR_length) rhs.resize(derivR_length); }));
+
 	beacls::UVecDepth depth = beacls::type_to_depth<FLOAT_TYPE>();
 
 	const beacls::IntegerVec& Ns = grid->get_Ns();
