@@ -4,6 +4,7 @@
 #include "ShapeCylinder_impl.hpp"
 #include <numeric>
 #include <cmath>
+#include <algorithm>
 using namespace levelset;
 
 ShapeCylinder_impl::ShapeCylinder_impl(
@@ -50,9 +51,9 @@ bool ShapeCylinder_impl::execute(const HJI_Grid *grid, beacls::FloatVec& data)
 	const size_t length = 0;
 
 	for (size_t dimension = 0; dimension < num_of_dimensions; ++dimension) {
-#if defined(ADHOCK_XS)
 		if (std::all_of(ignoreDims.cbegin(), ignoreDims.cend(),
 			[dimension](const auto& rhs) { return rhs != dimension; })) {
+#if defined(ADHOCK_XS)
 			const beacls::FloatVec& vs = grid->get_vs(dimension);
 			size_t inner_dimensions_loop_size = grid->get_inner_dimensions_loop_size(dimension);
 			size_t outer_dimensions_loop_size = grid->get_outer_dimensions_loop_size(dimension);
@@ -71,6 +72,7 @@ bool ShapeCylinder_impl::execute(const HJI_Grid *grid, beacls::FloatVec& data)
 			}
 #else
 			beacls::UVec x_uvec;
+			FLOAT_TYPE center_d = modified_center[dimension];
 			grid->get_xs(x_uvec, dimension, begin_index, length);
 			const beacls::FloatVec* xs_ptr = beacls::UVec_<FLOAT_TYPE>(x_uvec).vec();
 			std::transform(xs_ptr->cbegin(), xs_ptr->cend(), data.begin(), data.begin(), ([center_d](const auto &xs_i, const auto &data_i) {
