@@ -179,6 +179,7 @@ SOURCES  = AddGhostExtrapolate.cpp \
 	TermLaxFriedrichs.cpp \
 	TermRestrictUpdate.cpp \
 	HJI_Grid.cpp \
+	HJI_Grid_cuda_dummy.cpp \
 	ShapeCylinder.cpp \
 	ShapeHyperplaneByPoint.cpp \
 	ShapeRectangleByCenter.cpp \
@@ -202,6 +203,7 @@ SOURCES  = AddGhostExtrapolate.cpp \
 
 
 CUDA_SOURCES = 	UVec_cuda.cu \
+	HJI_Grid_cuda.cu \
 	ArtificialDissipationGLF_cuda.cu \
 	TermLaxFriedrichs_cuda.cu \
 	UpwindFirstENO3aHelper_cuda.cu \
