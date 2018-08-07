@@ -42,6 +42,7 @@
 *.props      text eol=crlf
 *.filters    text eol=crlf
 *.vcxitems   text eol=crlf
+*.bat    text eol=crlf
 #*.sln       merge=binary
 #*.csproj    merge=binary
 #*.vbproj    merge=binary
@@ -56,6 +57,7 @@
 #*.modelproj merge=binary
 #*.sqlproj   merge=binary
 #*.wwaproj   merge=binary
+#*.bat   merge=binary
 
 ###############################################################################
 # behavior for image files
