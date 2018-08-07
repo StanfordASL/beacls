@@ -75,10 +75,10 @@ int main(int argc, char *argv[])
 	const FLOAT_TYPE inf = std::numeric_limits<FLOAT_TYPE>::infinity();
 	//!< Target and obstacle
 	levelset::HJI_Grid* g = helperOC::createGrid(
-		beacls::FloatVec{(FLOAT_TYPE)0, (FLOAT_TYPE)0, (FLOAT_TYPE)0}, 
-		beacls::FloatVec{(FLOAT_TYPE)150, (FLOAT_TYPE)150, (FLOAT_TYPE)(2*M_PI)}, 
-		beacls::IntegerVec{51,51,51}, beacls::IntegerVec{2});
-
+		beacls::FloatVec{ (FLOAT_TYPE)0, (FLOAT_TYPE)0, (FLOAT_TYPE)0 },
+		beacls::FloatVec{ (FLOAT_TYPE)150, (FLOAT_TYPE)150, (FLOAT_TYPE)(2 * M_PI) },
+		beacls::IntegerVec{ 41,41,11 });
+	//	beacls::IntegerVec{ 401,401,201 });
 	std::vector<beacls::FloatVec > targets(1);
 	levelset::ShapeCylinder(beacls::IntegerVec{ 2 }, 
 		  beacls::FloatVec{ 75., 50., 0. }, (FLOAT_TYPE)10).execute(g, targets[0]);
@@ -110,6 +110,9 @@ int main(int argc, char *argv[])
 	extraArgs.obstacles = obstacles;
 	extraArgs.stopInit = pl->get_x();
 	extraArgs.visualize = true;
+	//	extraArgs.visualize_size = beacls::IntegerVec{ 640, 640 };
+	//	extraArgs.fx = 4.;
+	//	extraArgs.fy = 2.;
 	extraArgs.plotData.plotDims = beacls::IntegerVec{ 1, 1, 0 };
 	extraArgs.plotData.projpt = beacls::FloatVec{ pl->get_x()[2] };
 	extraArgs.deleteLastPlot = true;
@@ -139,22 +142,22 @@ int main(int argc, char *argv[])
 
 		g->save_grid(std::string("g"), fs);
 		if (!datas.empty()) save_vector_of_vectors(datas, std::string("data"), Ns, false, fs);
-		if (!tau2.empty()) save_vector(tau2, std::string("tau2"), Ns, false, fs);
+		if (!tau2.empty()) save_vector(tau2, std::string("tau2"), beacls::IntegerVec(), false, fs);
 	}
-	// //!< Compute optimal trajectory
-	// extraArgs.projDim = beacls::IntegerVec{ 1,1,0 };
-	// extraArgs.fig_filename = "Plane_test_Traj";
-	// std::vector<beacls::FloatVec > traj;
-	// beacls::FloatVec traj_tau;
-	// std::vector<beacls::FloatVec > fliped_data(datas.size());
-	// std::copy(datas.crbegin(), datas.crend(), fliped_data.begin());
-	// helperOC::ComputeOptTraj* computeOptTraj = new helperOC::ComputeOptTraj();
-	// computeOptTraj->operator()(traj, traj_tau, g, fliped_data, tau2, pl, extraArgs);
-	// if (computeOptTraj) delete computeOptTraj;
-	// if (dump_file) {
-	// 	if (!traj.empty()) save_vector_of_vectors(traj, std::string("traj"), beacls::IntegerVec(), false, fs);
-	// 	if (!traj_tau.empty()) save_vector(traj_tau, std::string("traj_tau"), beacls::IntegerVec(), false, fs);
-	// }
+	//!< Compute optimal trajectory
+	extraArgs.projDim = beacls::IntegerVec{ 1,1,0 };
+	extraArgs.fig_filename = "Plane_test_Traj";
+	std::vector<beacls::FloatVec > traj;
+	beacls::FloatVec traj_tau;
+	std::vector<beacls::FloatVec > fliped_data(datas.size());
+	std::copy(datas.crbegin(), datas.crend(), fliped_data.begin());
+	helperOC::ComputeOptTraj* computeOptTraj = new helperOC::ComputeOptTraj();
+	computeOptTraj->operator()(traj, traj_tau, g, fliped_data, tau2, pl, extraArgs);
+	if (computeOptTraj) delete computeOptTraj;
+	if (dump_file) {
+		if (!traj.empty()) save_vector_of_vectors(traj, std::string("traj"), beacls::IntegerVec(), false, fs);
+		if (!traj_tau.empty()) save_vector(traj_tau, std::string("traj_tau"), beacls::IntegerVec(), false, fs);
+	}
 	beacls::closeMatFStream(fs);
 
 
