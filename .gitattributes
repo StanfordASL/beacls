@@ -29,6 +29,7 @@
 *.vbproj     text eol=crlf
 *.vcxproj    text eol=crlf
 *.vcxproj.filters    text eol=crlf
+*.vcxproj.user    text eol=crlf
 *.vcproj     text eol=crlf
 *.dbproj     text eol=crlf
 *.fsproj     text eol=crlf
@@ -46,6 +47,7 @@
 #*.vbproj    merge=binary
 #*.vcxproj   merge=binary
 #*.vcxproj.filters   merge=binary
+#*.vcxproj.user   merge=binary
 #*.vcproj    merge=binary
 #*.dbproj    merge=binary
 #*.fsproj    merge=binary
