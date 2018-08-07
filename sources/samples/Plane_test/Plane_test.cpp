@@ -78,12 +78,11 @@ int main(int argc, char *argv[])
 	const FLOAT_TYPE inf = std::numeric_limits<FLOAT_TYPE>::infinity();
 	//!< Target and obstacle
 	levelset::HJI_Grid* g = helperOC::createGrid(
-		beacls::FloatVec{(FLOAT_TYPE)0, (FLOAT_TYPE)0, (FLOAT_TYPE)0}, 
-		beacls::FloatVec{(FLOAT_TYPE)150, (FLOAT_TYPE)150, (FLOAT_TYPE)(2*M_PI)}, 
+		beacls::FloatVec{ (FLOAT_TYPE)0, (FLOAT_TYPE)0, (FLOAT_TYPE)0 },
+		beacls::FloatVec{ (FLOAT_TYPE)150, (FLOAT_TYPE)150, (FLOAT_TYPE)(2 * M_PI) },
 		beacls::IntegerVec{ 41,41,11 });
 	//	beacls::IntegerVec{ 401,401,201 });
 	std::vector<beacls::FloatVec > targets(1);
-	levelset::ShapeCylinder(beacls::IntegerVec{ 2 }, beacls::FloatVec{ 75., 50., 0. }, (FLOAT_TYPE)10).execute(g, targets[0]);
 	levelset::ShapeCylinder(beacls::IntegerVec{ 2 }, 
 		  beacls::FloatVec{ 75., 50., 0. }, (FLOAT_TYPE)10).execute(g, targets[0]);
 
@@ -96,7 +95,7 @@ int main(int argc, char *argv[])
 	std::transform(obs1.cbegin(), obs1.cend(), obs2.cbegin(), obstacles[0].begin(), std::ptr_fun<const FLOAT_TYPE&, const FLOAT_TYPE&>(std::min<FLOAT_TYPE>));
 
 	//!< Compute reachable set
-	const FLOAT_TYPE tMax = 200;
+	const FLOAT_TYPE tMax = 30;
 	const FLOAT_TYPE dt = 0.25;
 	beacls::FloatVec tau = generateArithmeticSequence<FLOAT_TYPE>(0., dt, tMax);
 
@@ -114,9 +113,9 @@ int main(int argc, char *argv[])
 	extraArgs.obstacles = obstacles;
 	extraArgs.stopInit = pl->get_x();
 	extraArgs.visualize = true;
-	extraArgs.visualize_size = beacls::IntegerVec{ 640, 640 };
-//	extraArgs.fx = 4.;
-//	extraArgs.fy = 2.;
+	//	extraArgs.visualize_size = beacls::IntegerVec{ 640, 640 };
+	//	extraArgs.fx = 4.;
+	//	extraArgs.fy = 2.;
 	extraArgs.plotData.plotDims = beacls::IntegerVec{ 1, 1, 0 };
 	extraArgs.plotData.projpt = beacls::FloatVec{ pl->get_x()[2] };
 	extraArgs.deleteLastPlot = true;
