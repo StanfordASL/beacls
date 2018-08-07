@@ -116,6 +116,12 @@ namespace levelset {
 		PREFIX_VC_DLL
 			void set_num_of_dimensions(size_t num_of_dimensions);
 		PREFIX_VC_DLL
+			size_t get_inner_dimensions_loop_size(const size_t dim) const;
+		PREFIX_VC_DLL
+			size_t get_target_dimension_loop_size(const size_t dim) const;
+		PREFIX_VC_DLL
+			size_t get_outer_dimensions_loop_size(const size_t dim) const;
+		PREFIX_VC_DLL
 			void set_mins(const std::vector<FLOAT_TYPE>& mins);
 		PREFIX_VC_DLL
 			void set_maxs(const std::vector<FLOAT_TYPE>& maxs);
