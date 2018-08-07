@@ -23,11 +23,29 @@
 # these files as binary and thus will always conflict and require user
 # intervention with every merge. To do so, just uncomment the entries below
 ###############################################################################
-*.sln       merge=binary
+
+*.sln        text eol=crlf
+*.csproj     text eol=crlf
+*.vbproj     text eol=crlf
+*.vcxproj    text eol=crlf
+*.vcxproj.filters    text eol=crlf
+*.vcproj     text eol=crlf
+*.dbproj     text eol=crlf
+*.fsproj     text eol=crlf
+*.lsproj     text eol=crlf
+*.wixproj    text eol=crlf
+*.modelproj  text eol=crlf
+*.sqlproj    text eol=crlf
+*.wmaproj    text eol=crlf
+*.xproj      text eol=crlf
+*.props      text eol=crlf
+*.filters    text eol=crlf
+*.vcxitems   text eol=crlf
+#*.sln       merge=binary
 #*.csproj    merge=binary
 #*.vbproj    merge=binary
-*.vcxproj   merge=binary
-*.vcxproj.filters   merge=binary
+#*.vcxproj   merge=binary
+#*.vcxproj.filters   merge=binary
 #*.vcproj    merge=binary
 #*.dbproj    merge=binary
 #*.fsproj    merge=binary
