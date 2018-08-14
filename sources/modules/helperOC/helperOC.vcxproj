@@ -27,6 +27,8 @@
     <ClCompile Include="ComputeGradients_Worker.cpp" />
     <ClCompile Include="ComputeOptTraj.cpp" />
     <ClCompile Include="DynSys\Air3D\Air3D.cpp" />
+    <ClCompile Include="DynSys\BicycleCAvoid\BicycleCAvoid.cpp" />
+    <ClCompile Include="DynSys\BicycleCAvoid\BicycleCAvoid_cuda_dummy.cpp" />
     <ClCompile Include="DynSys\DubinsCarCAvoid\DubinsCarCAvoid.cpp" />
     <ClCompile Include="DynSys\DubinsCar\DubinsCar.cpp" />
     <ClCompile Include="DynSys\DubinsCar\DubinsCar_cuda_dummy.cpp" />
@@ -63,6 +65,8 @@
     <ClInclude Include="..\..\..\builds\includes\helperOC\ComputeGradients.hpp" />
     <ClInclude Include="..\..\..\builds\includes\helperOC\ComputeOptTraj.hpp" />
     <ClInclude Include="..\..\..\builds\includes\helperOC\DynSys\Air3D\Air3D.hpp" />
+    <ClInclude Include="..\..\..\builds\includes\helperOC\DynSys\BicycleCAvoid\BicycleCAvoid.hpp" />
+    <ClInclude Include="..\..\..\builds\includes\helperOC\DynSys\BicycleCAvoid\X1Params.hpp" />
     <ClInclude Include="..\..\..\builds\includes\helperOC\DynSys\DubinsCarCAvoid\DubinsCarCAvoid.hpp" />
     <ClInclude Include="..\..\..\builds\includes\helperOC\DynSys\DubinsCar\DubinsCar.hpp" />
     <ClInclude Include="..\..\..\builds\includes\helperOC\DynSys\DynSys\DynSys.hpp" />
@@ -100,6 +104,7 @@
     <ClInclude Include="ComputeGradients_Worker.hpp" />
     <ClInclude Include="ComputeGradients_Worker_impl.hpp" />
     <ClInclude Include="ComputeOptTraj_impl.hpp" />
+    <ClInclude Include="DynSys\BicycleCAvoid\BicycleCAvoid_cuda.hpp" />
     <ClInclude Include="DynSys\DubinsCar\DubinsCar_cuda.hpp" />
     <ClInclude Include="DynSys\DynSys\DynSysSchemeData_cuda.hpp" />
     <ClInclude Include="DynSys\DynSys\DynSys_impl.hpp" />
@@ -124,6 +129,7 @@
     <CudaCompile Include="DynSys\Quad4D\Quad4D_cuda.cu">
       <FileType>Document</FileType>
     </CudaCompile>
+    <None Include="DynSys\BicycleCAvoid\BicycleCAvoid_cuda.cu" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{7C9F9249-AA19-412E-974B-40CCD2C6AB3F}</ProjectGuid>

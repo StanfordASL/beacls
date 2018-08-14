@@ -132,6 +132,12 @@
     <ClCompile Include="DynSys\P5D_Dubins\P5D_Dubins.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
+    <ClCompile Include="DynSys\BicycleCAvoid\BicycleCAvoid_cuda_dummy.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="DynSys\BicycleCAvoid\BicycleCAvoid.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ValFuncs\HJIPDE_impl.hpp">
@@ -284,6 +290,15 @@
     <ClInclude Include="..\..\..\builds\includes\helperOC\DynSys\P5D_Dubins\P5D_Dubins.hpp">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
+    <ClInclude Include="DynSys\BicycleCAvoid\BicycleCAvoid_cuda.hpp">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\builds\includes\helperOC\DynSys\BicycleCAvoid\X1Params.hpp">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\builds\includes\helperOC\DynSys\BicycleCAvoid\BicycleCAvoid.hpp">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <CudaCompile Include="DynSys\Plane\Plane_cuda.cu">
@@ -310,5 +325,8 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="ClassDiagram.cd" />
+    <None Include="DynSys\BicycleCAvoid\BicycleCAvoid_cuda.cu">
+      <Filter>ソース ファイル</Filter>
+    </None>
   </ItemGroup>
 </Project>

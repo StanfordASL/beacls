@@ -202,7 +202,8 @@ SOURCES  = augmentPeriodicData.cpp \
 	ComputeOptTraj.cpp \
 	ExtractCostates.cpp \
 	P5D_Dubins.cpp \
-	BicycleCAvoid.cpp
+	BicycleCAvoid.cpp \
+	BicycleCAvoid_cuda_dummy.cpp
 
 CUDA_SOURCES = ComputeGradients_OneSlice_cuda.cu \
 	DubinsCar_cuda.cu \

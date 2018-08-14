@@ -87,6 +87,12 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "P5D_Dubins_RS", "samples\P5
 		{7C9F9249-AA19-412E-974B-40CCD2C6AB3F} = {7C9F9249-AA19-412E-974B-40CCD2C6AB3F}
 	EndProjectSection
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "BicycleCAvoid_test", "samples\BicycleCAvoid\BicycleCAvoid_test.vcxproj", "{8F804D8B-4AC7-410C-A239-282F44DE6065}"
+	ProjectSection(ProjectDependencies) = postProject
+		{5822BB32-8BBA-4BC6-8DC5-4A3D06552CD5} = {5822BB32-8BBA-4BC6-8DC5-4A3D06552CD5}
+		{7C9F9249-AA19-412E-974B-40CCD2C6AB3F} = {7C9F9249-AA19-412E-974B-40CCD2C6AB3F}
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -215,6 +221,14 @@ Global
 		{87578134-23B7-458B-96CA-7F455294588C}.Release|Win32.Build.0 = Release|Win32
 		{87578134-23B7-458B-96CA-7F455294588C}.Release|x64.ActiveCfg = Release|x64
 		{87578134-23B7-458B-96CA-7F455294588C}.Release|x64.Build.0 = Release|x64
+		{8F804D8B-4AC7-410C-A239-282F44DE6065}.Debug|Win32.ActiveCfg = Debug|Win32
+		{8F804D8B-4AC7-410C-A239-282F44DE6065}.Debug|Win32.Build.0 = Debug|Win32
+		{8F804D8B-4AC7-410C-A239-282F44DE6065}.Debug|x64.ActiveCfg = Debug|x64
+		{8F804D8B-4AC7-410C-A239-282F44DE6065}.Debug|x64.Build.0 = Debug|x64
+		{8F804D8B-4AC7-410C-A239-282F44DE6065}.Release|Win32.ActiveCfg = Release|Win32
+		{8F804D8B-4AC7-410C-A239-282F44DE6065}.Release|Win32.Build.0 = Release|Win32
+		{8F804D8B-4AC7-410C-A239-282F44DE6065}.Release|x64.ActiveCfg = Release|x64
+		{8F804D8B-4AC7-410C-A239-282F44DE6065}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
