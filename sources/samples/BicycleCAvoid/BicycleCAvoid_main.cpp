@@ -13,6 +13,8 @@
 #include <iomanip>
 #include <cstring>
 
+#include "BicycleCAvoid_IC.hpp"
+
 const FLOAT_TYPE inf = std::numeric_limits<FLOAT_TYPE>::infinity();
 
 /**
@@ -27,7 +29,15 @@ int main(int argc, char *argv[])
         std::stringstream ss(argv[1]);
         int d, i = 0;
         while (ss >> d) {
-            gN[i] = d;
+            if (i == 0) {    // match size of precomputed initial conditions
+                gN[i] = sizeof(InitialCondition::XYTh)/sizeof(InitialCondition::XYTh[0]);
+            } else if (i == 1) {
+                gN[i] = sizeof(InitialCondition::XYTh[0])/sizeof(InitialCondition::XYTh[0][0]);
+            } else if (i == 2) {
+                gN[i] = sizeof(InitialCondition::XYTh[0][0])/sizeof(InitialCondition::XYTh[0][0][0]);
+            } else {
+                gN[i] = d;
+            }
             i++;
             if (ss.peek() == ',')
                 ss.ignore();
@@ -93,15 +103,15 @@ int main(int argc, char *argv[])
     const beacls::FloatVec gMin = beacls::FloatVec{ (FLOAT_TYPE)(-15),
                                                     (FLOAT_TYPE)(-5),
                                                     (FLOAT_TYPE)(-M_PI/2),
-                                                    (FLOAT_TYPE)3,
-                                                    (FLOAT_TYPE)(-5),
-                                                    (FLOAT_TYPE)3,
+                                                    (FLOAT_TYPE)1,
+                                                    (FLOAT_TYPE)(-2),
+                                                    (FLOAT_TYPE)1,
                                                     (FLOAT_TYPE)(-1) };
     const beacls::FloatVec gMax = beacls::FloatVec{ (FLOAT_TYPE)15,
                                                     (FLOAT_TYPE)5,
                                                     (FLOAT_TYPE)M_PI/2,
                                                     (FLOAT_TYPE)12,
-                                                    (FLOAT_TYPE)5,
+                                                    (FLOAT_TYPE)2,
                                                     (FLOAT_TYPE)12,
                                                     (FLOAT_TYPE)1 };
 
@@ -136,7 +146,32 @@ int main(int argc, char *argv[])
     beacls::FloatVec data0;
     // ignore all dimensions except x_rel,y_rel
     // levelset::ShapeCylinder(beacls::IntegerVec{2, 3, 4, 5, 6}, beacls::FloatVec{ (FLOAT_TYPE)0, (FLOAT_TYPE)0}, targetR).execute(g, data0);
-    levelset::ShapeRectangleByCorner(beacls::FloatVec{-3., -1.5, -inf, -inf, -inf, -inf, -inf}, beacls::FloatVec{3., 1.5, inf, inf, inf, inf, inf}).execute(g, data0);
+    // levelset::ShapeRectangleByCorner(beacls::FloatVec{-3., -1.5, -inf, -inf, -inf, -inf, -inf}, beacls::FloatVec{3., 1.5, inf, inf, inf, inf, inf}).execute(g, data0);
+
+    // START INITIALIZATION
+        beacls::IntegerVec N = g->get_Ns();
+
+        size_t num_of_dimensions = g->get_num_of_dimensions();
+        const size_t num_of_elements = g->get_sum_of_elems();
+        data0.resize(num_of_elements);
+        const std::vector<beacls::FloatVec > &xss = g->get_xss();
+        for (size_t i = 0; i<num_of_elements; ++i) {
+            // if (i < 170) {
+            //     std::cout << xss[0][i] << " "
+            //               << xss[1][i] << " "
+            //               << xss[2][i] << " "
+            //               << xss[3][i] << " "
+            //               << xss[4][i] << " "
+            //               << xss[5][i] << " "
+            //               << xss[6][i] << " " << std::endl;
+            // }
+            size_t x_ind  = i % 13;
+            size_t y_ind  = (i / 13) % 13;
+            size_t th_ind = (i / (13*13)) % 9;
+            data0[i] = InitialCondition::XYTh[x_ind][y_ind][th_ind];
+        }
+    // END INITIALIZATION
+
     //!< Additional solver parameters
     helperOC::DynSysSchemeData* sD = new helperOC::DynSysSchemeData;
     sD->set_grid(g);
