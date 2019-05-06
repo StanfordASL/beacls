@@ -31,7 +31,7 @@
  * POSSIBILITY OF SUCH DAMAGE.
  *
  * Please contact the author(s) of this library if you have any questions.
- * Authors: Jaime F. Fisac   ( jfisac@eecs.berkeley.edu )
+ * Authors: Karen Leung and Edward Schmerling   ( karenl7@stanford.edu )
  */
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -128,42 +128,56 @@ bool BicycleCAvoid::optCtrl(
   uOpts.resize(get_nu());
   uOpts[0].resize(deriv_sizes[0]);
   uOpts[1].resize(deriv_sizes[0]);
-  FLOAT_TYPE A, B, C;
-  FLOAT_TYPE frac, Fxi, FxOpt, value, valueOpt, Fxfi, Fxri, afi, ari, Fzfi, Fzri, Fyfi, Fyri;
+  FLOAT_TYPE Fxf_coeff, Fxr_coeff, Fyf_coeff, Fyr_coeff;            // terms that depend on the control inputs Fx and/or delta.
+  FLOAT_TYPE frac, di, diOpt, Fxi, FxOpt, value, valueOpt, Fxfi, Fxri, afi, ari, Fzfi, Fzri, Fyfi, Fyri;
   FLOAT_TYPE sign = (modified_uMode == helperOC::DynSys_UMode_Max) ? 1 : -1;
   // Xr, Yr, psi_r, Ux, Uy, v, r
   // 0    1    2     3   4  5  6
+
+  // grid for Fx
   size_t N = 50;
+  // grid for delta (+/- 18 degrees)
+  size_t K = 36;
 
   for (size_t i = 0; i < deriv_sizes[0]; ++i) {
-    A = deriv_ptrs[3][i] / X1::m;       // Fx coefficient
-    B = deriv_ptrs[4][i] / X1::m + X1::a * deriv_ptrs[6][i] / X1::Izz;      // Fyf coefficient
-    C = deriv_ptrs[4][i] / X1::m - X1::b * deriv_ptrs[6][i] / X1::Izz;      // Fyr coefficient
-
-    uOpts[0][i] = (B >= 0) ? sign*X1::d_max : -sign*X1::d_max;
 
     valueOpt = (sign > 0) ? std::numeric_limits<FLOAT_TYPE>::lowest() :
                             std::numeric_limits<FLOAT_TYPE>::max();
     FxOpt = 0;
+    diOpt = 0;
+    for (size_t k = 0; k < K; ++k) {
+      frac = ((FLOAT_TYPE)k)/((FLOAT_TYPE)(K-1));
+      di = frac * X1::d_max - X1::d_max * (1.0 - frac);
 
-    for (size_t n = 0; n < N; ++n) {
-      frac = ((FLOAT_TYPE)n)/((FLOAT_TYPE)(N-1));
-      Fxi = frac * X1::maxFx + X1::minFx * (1.0 - frac);
-      Fxfi = getFxf(Fxi);
-      Fxri = getFxr(Fxi);
-      afi = std::atan2(x_ites[4][i] + X1::a * x_ites[6][i], x_ites[3][i]) - uOpts[0][i];
-      ari = std::atan2(x_ites[4][i] - X1::b * x_ites[6][i], x_ites[3][i]);
-      Fzfi = (X1::m * X1::G * X1::b - X1::h * Fxi) / X1::L;
-      Fzri = (X1::m * X1::G * X1::a + X1::h * Fxi) / X1::L;
-      Fyfi = fialaTireModel(afi, X1::Caf, X1::mu, Fxfi, Fzfi);
-      Fyri = fialaTireModel(ari, X1::Car, X1::mu, Fxri, Fzri);
-      value = A * Fxi + B * Fyfi + C * Fyri;
-      if ( ((modified_uMode == helperOC::DynSys_UMode_Max) && (value > valueOpt)) ||
-           ((modified_uMode == helperOC::DynSys_UMode_Min) && (value < valueOpt)) ) {
-        FxOpt = Fxi;
-        valueOpt = value;
+      for (size_t n = 0; n < N; ++n) {
+
+        frac = ((FLOAT_TYPE)n)/((FLOAT_TYPE)(N-1));
+        Fxi = frac * X1::maxFx + X1::minFx * (1.0 - frac);
+        Fxfi = getFxf(Fxi);
+        Fxri = getFxr(Fxi);
+        afi = std::atan2(x_ites[4][i] + X1::a * x_ites[6][i], x_ites[3][i]) - di;
+        ari = std::atan2(x_ites[4][i] - X1::b * x_ites[6][i], x_ites[3][i]);
+        Fzfi = (X1::m * X1::G * X1::b - X1::h * Fxi) / X1::L;
+        Fzri = (X1::m * X1::G * X1::a + X1::h * Fxi) / X1::L;
+        Fyfi = fialaTireModel(afi, X1::Caf, X1::mu, Fxfi, Fzfi);
+        Fyri = fialaTireModel(ari, X1::Car, X1::mu, Fxri, Fzri);
+
+        Fxf_coeff = deriv_ptrs[3][i] / X1::m * std::cos(di) + deriv_ptrs[4][i] / X1::m * std::sin(di) + deriv_ptrs[6][i] / X1::Izz * X1::a * std::sin(di);
+        Fxr_coeff = deriv_ptrs[3][i] / X1::m;
+        Fyf_coeff = -deriv_ptrs[3][i] / X1::m * std::sin(di) + deriv_ptrs[4][i] / X1::m * std::cos(di) + deriv_ptrs[6][i] / X1::Izz * X1::a * std::cos(di);
+        Fyr_coeff = deriv_ptrs[4][i] / X1::m - deriv_ptrs[6][i] / X1::Izz * X1::b;
+
+        value = Fxf_coeff * Fxfi + Fxr_coeff * Fxri + Fyf_coeff * Fyfi + Fyr_coeff * Fyri;
+
+        if ( ((modified_uMode == helperOC::DynSys_UMode_Max) && (value > valueOpt)) ||
+             ((modified_uMode == helperOC::DynSys_UMode_Min) && (value < valueOpt)) ) {
+          diOpt = di;
+          FxOpt = Fxi;
+          valueOpt = value;
+        }
       }
     }
+    uOpts[0][i] = diOpt;
     uOpts[1][i] = FxOpt;
   }
   return true;
@@ -318,22 +332,40 @@ bool BicycleCAvoid::dynamics_cell_helper(
       }
     } break;
 
-    case 3: {   // Ux_dot = (Fxf + Fxr + Fx_drag) / m + r * Uy
+    case 3: {   // Ux_dot = (Fxf * cos(delta) - Fyf * sin(delta) + Fxr + Fx_drag) / m + r * Uy
       dx_i.resize(size_Ux);
+      // get delta and Fx control inputs
+      const beacls::FloatVec&  d = us[0];
       const beacls::FloatVec& Fx = us[1];
-      FLOAT_TYPE Fxi, Fx_dragi;
 
+      // variables needed for computation
+      FLOAT_TYPE di, Fxi, Fx_dragi, Fxfi, Fxri, afi, Fzfi, Fyfi;
+
+      // looping through
       for (size_t i = 0; i < size_Ux; ++i) {
+        // checking if it's a vector or not.
+        if (d.size() == size_Ux)
+          di = d[i];
+        else
+          di = d[0];
         if (Fx.size() == size_Ux)
           Fxi = Fx[i];
         else
           Fxi = Fx[0];
+
+        // computing relevant variables
+        Fxfi = getFxf(Fxi);
+        Fxri = getFxr(Fxi);
+        afi = std::atan2(Uy[i] + X1::a * r[i], Ux[i]) - di;
+        Fzfi = (X1::m * X1::G * X1::b - X1::h * Fxi) / X1::L;
+        Fyfi = fialaTireModel(afi, X1::Caf, X1::mu, Fxfi, Fzfi);
         Fx_dragi = -X1::Cd0 - Ux[i] * (X1::Cd1 + X1::Cd2 * Ux[i]);
-        dx_i[i] = (Fxi + Fx_dragi) / X1::m + r[i] * Uy[i];
+
+        dx_i[i] = (Fxfi * std::cos(di) - Fyfi * std::sin(di) + Fxri + Fx_dragi) / X1::m + r[i] * Uy[i];
       }
     } break;
 
-    case 4: { // Uy_dot = (Fyf + Fyr) / m - r * Ux
+    case 4: { // Uy_dot = (Fyf * cos(delta) + Fyr + Fxf * sin(delta)) / m - r * Ux
       dx_i.resize(size_Uy);
       const beacls::FloatVec&  d = us[0];
       const beacls::FloatVec& Fx = us[1];
@@ -356,7 +388,7 @@ bool BicycleCAvoid::dynamics_cell_helper(
         Fzri = (X1::m * X1::G * X1::a + X1::h * Fxi) / X1::L;
         Fyfi = fialaTireModel(afi, X1::Caf, X1::mu, Fxfi, Fzfi);
         Fyri = fialaTireModel(ari, X1::Car, X1::mu, Fxri, Fzri);
-        dx_i[i] = (Fyfi + Fyri) / X1::m - r[i] * Ux[i];
+        dx_i[i] = (Fyfi * std::sin(di) + Fyri + Fxfi * std::sin(di)) / X1::m - r[i] * Ux[i];
       }
     } break;
 
@@ -374,7 +406,7 @@ bool BicycleCAvoid::dynamics_cell_helper(
       }
     } break;
 
-    case 6: { // r_dot = (a * Fyf - b * Fyr) / Izz
+    case 6: { // r_dot = (a * Fyf * cos(delta) + a * Fxf * sin(delta) - b * Fyr) / Izz
       dx_i.resize(size_r);
       const beacls::FloatVec&  d = us[0];
       const beacls::FloatVec& Fx = us[1];
@@ -397,7 +429,7 @@ bool BicycleCAvoid::dynamics_cell_helper(
         Fzri = (X1::m * X1::G * X1::a + X1::h * Fxi) / X1::L;
         Fyfi = fialaTireModel(afi, X1::Caf, X1::mu, Fxfi, Fzfi);
         Fyri = fialaTireModel(ari, X1::Car, X1::mu, Fxri, Fzri);
-        dx_i[i] = (X1::a * Fyfi - X1::b * Fyri) / X1::Izz;
+        dx_i[i] = (X1::a * Fyfi * std::cos(di) - X1::a * Fxfi * std::sin(di) - X1::b * Fyri) / X1::Izz;
       }
     } break;
 
