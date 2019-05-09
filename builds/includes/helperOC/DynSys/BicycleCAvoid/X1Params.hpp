@@ -31,8 +31,8 @@ static const FLOAT_TYPE w = 1.87;                                               
 
 // Tire Model Parameters
 static const FLOAT_TYPE mu = 0.92;                                                     // coefficient of friction
-static const FLOAT_TYPE Caf = 140e3;                                                   // front tire (pair) cornering stiffness (N/rad)
-static const FLOAT_TYPE Car = 190e3;                                                   // rear tire (pair) cornering stiffness (N/rad)
+static const FLOAT_TYPE Caf = 150e3;                                                   // front tire (pair) cornering stiffness (N/rad), // previously it was 140e3; new tires in Spring 2019
+static const FLOAT_TYPE Car = 220e3;                                                   // rear tire (pair) cornering stiffness (N/rad), // previously it was 190e3; new tires in Spring 2019
 
 // Longitudinal Actuation Parameters
 static const FLOAT_TYPE maxFx = 5600;                                                  // max positive longitudinal force (N)

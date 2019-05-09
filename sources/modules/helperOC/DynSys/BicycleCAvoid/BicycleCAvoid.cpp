@@ -135,7 +135,7 @@ bool BicycleCAvoid::optCtrl(
   // 0    1    2     3   4  5  6
 
   // grid for Fx
-  size_t N = 50;
+  size_t N = 40;
   // grid for delta (+/- 18 degrees)
   size_t K = 18;
 
