@@ -137,7 +137,7 @@ bool BicycleCAvoid::optCtrl(
   // grid for Fx
   size_t N = 50;
   // grid for delta (+/- 18 degrees)
-  size_t K = 36;
+  size_t K = 18;
 
   for (size_t i = 0; i < deriv_sizes[0]; ++i) {
 
