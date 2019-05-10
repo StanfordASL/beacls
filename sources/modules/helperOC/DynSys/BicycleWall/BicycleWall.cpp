@@ -366,7 +366,7 @@ bool BicycleWall::dynamics_cell_helper(
         Fzri = (X1::m * X1::G * X1::a + X1::h * Fxi) / X1::L;
         Fyfi = fialaTireModel(afi, X1::Caf, X1::mu, Fxfi, Fzfi);
         Fyri = fialaTireModel(ari, X1::Car, X1::mu, Fxri, Fzri);
-        dx_i[i] = (X1::a * Fyfi * std::cos(di) + X1::a * Fxfi * std:sin(di) - X1::b * Fyri) / X1::Izz;
+        dx_i[i] = (X1::a * Fyfi * std::cos(di) + X1::a * Fxfi * std::sin(di) - X1::b * Fyri) / X1::Izz;
       }
     } break;
 
