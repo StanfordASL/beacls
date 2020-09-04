@@ -221,29 +221,29 @@ bool BicycleCAvoid::optDstb(
     vi = v[i];
     lam_wi  = deriv_ptrs[2][i];
     lam_Axi = deriv_ptrs[5][i];
-    lam_Ayi = lam_wi / vi;
+    lam_Ayi = lam_wi / vi;      // ay = v^2/R, om = v/R -> ay = om*v -> lam_wi * w = lam_wi *ay/v -> lam_Ayi = lam_wi/v
     lam_norm = std::hypot(lam_Axi, lam_Ayi);
     if (lam_norm < 0.001) {
         dOpts[0][i] = 0;
         dOpts[1][i] = 0;
     } else {
-      desAxi = sign * lam_Axi * maxA / lam_norm;
-      desAyi = sign * lam_Ayi * maxA / lam_norm;
-      maxAxi = std::min(X1::maxAx, X1::maxP2mx / vi);  // max longitudinal acceleration
-      maxAyi = X1::w_per_v_max_lowspeed * vi * vi;     // also bounded by maxA
-      if (desAxi > maxAxi) {
-        if (std::abs(desAyi) < maxAyi) {
+      desAxi = sign * lam_Axi * maxA / lam_norm;    // desired Ax on the friction circle
+      desAyi = sign * lam_Ayi * maxA / lam_norm;    // desired Ay on the friction circle
+      maxAxi = std::min(X1::maxAx, X1::maxP2mx / vi);  // max longitudinal acceleration, possibly removing a segment off the friction circle
+      maxAyi = X1::w_per_v_max_lowspeed * vi * vi;     // maximum lateral acceleration, also bounded by maxA
+      if (desAxi > maxAxi) {    // if desAxi is in the removed segment region
+        if (std::abs(desAyi) < maxAyi) {    // if desAyi is still below maxAyi, then re-adjust Ayi to be on the edge of the friction circle given the new Axi, of it could be limited by maxAyi (if MaxAyi is between desAyi and the newly adjusted Ayi)
           maxAyi = std::min(std::sqrt(maxA * maxA - maxAxi * maxAxi), maxAyi);
         }
         dOpts[0][i] = std::copysign(maxAyi, desAyi) / vi;
         dOpts[1][i] = maxAxi;
-      } else {
-        if (std::abs(desAyi) > maxAyi) {
-          if (desAxi > 0) {
+      } else {    // if desAxi is not limited by maxAx
+        if (std::abs(desAyi) > maxAyi) {    // if desAyi is limited by maxAyi, then re-adjust Axi
+          if (desAxi > 0) {   // if interested in accelerating, given the new Ayi, re-adjust Axi to be on the edge of the friction circle, and below maxAxi
             maxAxi = std::min(std::sqrt(maxA * maxA - maxAyi * maxAyi), maxAxi);
             dOpts[0][i] = std::copysign(maxAyi, desAyi) / vi;
             dOpts[1][i] = maxAxi;
-          } else {
+          } else {    // different from above since there is no power limit when braking.
             dOpts[0][i] = std::copysign(maxAyi, desAyi) / vi;
             dOpts[1][i] = -std::sqrt(maxA * maxA - maxAyi * maxAyi);
           }
