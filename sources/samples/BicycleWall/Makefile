@@ -17,7 +17,7 @@ USE_USER_DEFINED_GPU_DYNSYS_FUNC = 0
 MODEL_SIZE = 0
 GN_SIZE = 11
 T_MAX = 5.0
-OUTPUT_FILENAME = BicycleCAvoid.mat
+OUTPUT_FILENAME = BicycleWall.mat
 NVCC = /usr/bin/nvcc
 ARCH = $(shell uname -m)
 PWD = $(shell pwd)
@@ -175,7 +175,7 @@ endif
 vpath %.cpp .
 
 INCLUDE  = -I$(INSTALL_DIR)/includes
-TARGET   = BicycleCAvoid_main
+TARGET   = BicycleWall_main
 OBJDIR   = ./obj
 ifeq "$(strip $(OBJDIR))" ""
   OBJDIR = .

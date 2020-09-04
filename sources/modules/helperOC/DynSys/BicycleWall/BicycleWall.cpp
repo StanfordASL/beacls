@@ -31,7 +31,7 @@
  * POSSIBILITY OF SUCH DAMAGE.
  *
  * Please contact the author(s) of this library if you have any questions.
- * Authors: Karen Leung and Edward Schmerling   ( karenl7@stanford.edu )
+ * Authors: Jaime F. Fisac   ( jfisac@eecs.berkeley.edu )
  */
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -42,26 +42,25 @@
 ///////////////////////////////////////////////////////////////////////////////
 
 
-#include <helperOC/DynSys/BicycleCAvoid/BicycleCAvoid.hpp>
+#include <helperOC/DynSys/BicycleWall/BicycleWall.hpp>
 #include <iostream>
 #include <cmath>
 #include <limits>
 #include <algorithm>
 #include <typeinfo>
 #include <levelset/Grids/HJI_Grid.hpp>
-#include "BicycleCAvoid_cuda.hpp"
 using namespace helperOC;
 
 
-BicycleCAvoid::BicycleCAvoid(
+BicycleWall::BicycleWall(
     const beacls::FloatVec& x,      // state of tracker (relative to planner)
     const beacls::IntegerVec& dims
 ) : DynSys(
-      7, // states: [x_rel, y_rel, psi_rel, Ux, Uy, V, r]
-      2, // controls: [d, Fx]
-      2  // disturbances: dynamically extended simple car [w, a]
+      5, // states: [y_rel, psi_rel, Ux, Uy, r]
+      2, // controls: [delta, Fx]
+      1 // disturbances: on r_dot equation [r_d]
     ), dims(dims) {
-    std::cout << "Constructed BicycleCAvoid object." << std::endl;
+    std::cout << "Constructed BicycleWall object." << std::endl;
     //!< Process control range
     if (x.size() != DynSys::get_nx()) {
       std::cerr << "Error: " << __func__ << " : Initial state does not have right dimension!" << std::endl;
@@ -71,7 +70,7 @@ BicycleCAvoid::BicycleCAvoid(
     DynSys::push_back_xhist(x);
 }
 
-BicycleCAvoid::BicycleCAvoid(
+BicycleWall::BicycleWall(
     beacls::MatFStream* fs,
     beacls::MatVariable* variable_ptr
 ) :
@@ -81,22 +80,22 @@ BicycleCAvoid::BicycleCAvoid(
     load_vector(dims, std::string("dims"), dummy, true, fs, variable_ptr);
 }
 
-BicycleCAvoid::~BicycleCAvoid() {}
+BicycleWall::~BicycleWall() {}
 
-bool BicycleCAvoid::operator==(const BicycleCAvoid& rhs) const {
+bool BicycleWall::operator==(const BicycleWall& rhs) const {
   if (this == &rhs) return true;
   else if (!DynSys::operator==(rhs)) return false;
   else if ((dims.size() != rhs.dims.size()) || !std::equal(dims.cbegin(), dims.cend(), rhs.dims.cbegin())) return false;
   return true;
 }
 
-bool BicycleCAvoid::operator==(const DynSys& rhs) const {
+bool BicycleWall::operator==(const DynSys& rhs) const {
     if (this == &rhs) return true;
     else if (typeid(*this) != typeid(rhs)) return false;
-    else return operator==(dynamic_cast<const BicycleCAvoid&>(rhs));
+    else return operator==(dynamic_cast<const BicycleWall&>(rhs));
 }
 
-bool BicycleCAvoid::save(
+bool BicycleWall::save(
     beacls::MatFStream* fs,
     beacls::MatVariable* variable_ptr) {
 
@@ -105,7 +104,7 @@ bool BicycleCAvoid::save(
   return result;
 }
 
-bool BicycleCAvoid::optCtrl(
+bool BicycleWall::optCtrl(
     std::vector<beacls::FloatVec>& uOpts,
     const FLOAT_TYPE,
     const std::vector<beacls::FloatVec::const_iterator>& x_ites,
@@ -119,7 +118,7 @@ bool BicycleCAvoid::optCtrl(
 
   // uOpt = delta, Fx
   // Why is this needed? It is found in Plane.cpp
-  for (size_t dim = 0; dim < 7; ++dim) {
+  for (size_t dim = 0; dim < 5; ++dim) {
     if (deriv_sizes[dim] == 0 || deriv_ptrs[dim] == NULL) {
       return false;
     }
@@ -128,11 +127,12 @@ bool BicycleCAvoid::optCtrl(
   uOpts.resize(get_nu());
   uOpts[0].resize(deriv_sizes[0]);
   uOpts[1].resize(deriv_sizes[0]);
+
   FLOAT_TYPE Fxf_coeff, Fxr_coeff, Fyf_coeff, Fyr_coeff;            // terms that depend on the control inputs Fx and/or delta.
-  FLOAT_TYPE frac, di, diOpt, Fxi, FxOpt, value, valueOpt, Fxfi, Fxri, afi, ari, Fzfi, Fzri, Fyfi, Fyri;
+  FLOAT_TYPE frac_1, frac_2, di, diOpt, Fxi, FxOpt, value, valueOpt, Fxfi, Fxri, afi, ari, Fzfi, Fzri, Fyfi, Fyri;
   FLOAT_TYPE sign = (modified_uMode == helperOC::DynSys_UMode_Max) ? 1 : -1;
-  // Xr, Yr, psi_r, Ux, Uy, v, r
-  // 0    1    2     3   4  5  6
+  // Yr, psi_r, Ux, Uy,  r
+  // 0    1      2   3   4
 
   // grid for Fx
   size_t N = 40;
@@ -146,26 +146,26 @@ bool BicycleCAvoid::optCtrl(
     FxOpt = 0;
     diOpt = 0;
     for (size_t k = 0; k < K; ++k) {
-      frac = ((FLOAT_TYPE)k)/((FLOAT_TYPE)(K-1));
-      di = frac * X1::d_max - X1::d_max * (1.0 - frac);
+      frac_1 = ((FLOAT_TYPE)k)/((FLOAT_TYPE)(K-1));
+      di = frac_1 * X1::d_max - X1::d_max * (1.0 - frac_1);
 
       for (size_t n = 0; n < N; ++n) {
 
-        frac = ((FLOAT_TYPE)n)/((FLOAT_TYPE)(N-1));
-        Fxi = frac * X1::maxFx + X1::minFx * (1.0 - frac);
+        frac_2 = ((FLOAT_TYPE)n)/((FLOAT_TYPE)(N-1));
+        Fxi = frac_2 * X1::maxFx + X1::minFx * (1.0 - frac_2);
         Fxfi = getFxf(Fxi);
         Fxri = getFxr(Fxi);
-        afi = std::atan2(x_ites[4][i] + X1::a * x_ites[6][i], x_ites[3][i]) - di;
-        ari = std::atan2(x_ites[4][i] - X1::b * x_ites[6][i], x_ites[3][i]);
+        afi = std::atan2(x_ites[3][i] + X1::a * x_ites[4][i], x_ites[2][i]) - di;
+        ari = std::atan2(x_ites[3][i] - X1::b * x_ites[4][i], x_ites[2][i]);
         Fzfi = (X1::m * X1::G * X1::b - X1::h * Fxi) / X1::L;
         Fzri = (X1::m * X1::G * X1::a + X1::h * Fxi) / X1::L;
         Fyfi = fialaTireModel(afi, X1::Caf, X1::mu, Fxfi, Fzfi);
         Fyri = fialaTireModel(ari, X1::Car, X1::mu, Fxri, Fzri);
 
-        Fxf_coeff = deriv_ptrs[3][i] / X1::m * std::cos(di) + deriv_ptrs[4][i] / X1::m * std::sin(di) + deriv_ptrs[6][i] / X1::Izz * X1::a * std::sin(di);
-        Fxr_coeff = deriv_ptrs[3][i] / X1::m;
-        Fyf_coeff = -deriv_ptrs[3][i] / X1::m * std::sin(di) + deriv_ptrs[4][i] / X1::m * std::cos(di) + deriv_ptrs[6][i] / X1::Izz * X1::a * std::cos(di);
-        Fyr_coeff = deriv_ptrs[4][i] / X1::m - deriv_ptrs[6][i] / X1::Izz * X1::b;
+        Fxf_coeff = deriv_ptrs[2][i] / X1::m * std::cos(di) + deriv_ptrs[3][i] / X1::m * std::sin(di) + deriv_ptrs[4][i] / X1::Izz * X1::a * std::sin(di);
+        Fxr_coeff = deriv_ptrs[2][i] / X1::m;
+        Fyf_coeff = -deriv_ptrs[2][i] / X1::m * std::sin(di) + deriv_ptrs[3][i] / X1::m * std::cos(di) + deriv_ptrs[4][i] / X1::Izz * X1::a * std::cos(di);
+        Fyr_coeff = deriv_ptrs[3][i] / X1::m - deriv_ptrs[4][i] / X1::Izz * X1::b;
 
         value = Fxf_coeff * Fxfi + Fxr_coeff * Fxri + Fyf_coeff * Fyfi + Fyr_coeff * Fyri;
 
@@ -183,7 +183,7 @@ bool BicycleCAvoid::optCtrl(
   return true;
 }
 
-bool BicycleCAvoid::optDstb(
+bool BicycleWall::optDstb(
     std::vector<beacls::FloatVec>& dOpts,
     const FLOAT_TYPE,
     const std::vector<beacls::FloatVec::const_iterator>& x_ites,
@@ -203,7 +203,7 @@ bool BicycleCAvoid::optDstb(
   }
 
   // Why is this needed? It is found in Plane.cpp
-  for (size_t dim = 0; dim < 7; ++dim) {
+  for (size_t dim = 0; dim < 5; ++dim) {
     if (deriv_sizes[dim] == 0 || deriv_ptrs[dim] == NULL) {
       return false;
     }
@@ -211,54 +211,22 @@ bool BicycleCAvoid::optDstb(
 
   dOpts.resize(get_nd());
   dOpts[0].resize(deriv_sizes[0]);
-  dOpts[1].resize(deriv_sizes[0]);
 
-  beacls::FloatVec::const_iterator v = x_ites[5];
-  FLOAT_TYPE vi, lam_wi, lam_Axi, lam_Ayi, lam_norm, desAxi, desAyi, maxAxi, maxAyi;
-  FLOAT_TYPE maxA = X1::maxA_approx;
+  FLOAT_TYPE dVr, r_d_lim;
   FLOAT_TYPE sign = (modified_dMode == helperOC::DynSys_DMode_Max) ? 1 : -1;
+
+  r_d_lim = 0.1;
+
   for (size_t i = 0; i < deriv_sizes[0]; ++i) {
-    vi = v[i];
-    lam_wi  = deriv_ptrs[2][i];
-    lam_Axi = deriv_ptrs[5][i];
-    lam_Ayi = lam_wi / vi;
-    lam_norm = std::hypot(lam_Axi, lam_Ayi);
-    if (lam_norm < 0.001) {
-        dOpts[0][i] = 0;
-        dOpts[1][i] = 0;
-    } else {
-      desAxi = sign * lam_Axi * maxA / lam_norm;
-      desAyi = sign * lam_Ayi * maxA / lam_norm;
-      maxAxi = std::min(X1::maxAx, X1::maxP2mx / vi);  // max longitudinal acceleration
-      maxAyi = X1::w_per_v_max_lowspeed * vi * vi;     // also bounded by maxA
-      if (desAxi > maxAxi) {
-        if (std::abs(desAyi) < maxAyi) {
-          maxAyi = std::min(std::sqrt(maxA * maxA - maxAxi * maxAxi), maxAyi);
-        }
-        dOpts[0][i] = std::copysign(maxAyi, desAyi) / vi;
-        dOpts[1][i] = maxAxi;
-      } else {
-        if (std::abs(desAyi) > maxAyi) {
-          if (desAxi > 0) {
-            maxAxi = std::min(std::sqrt(maxA * maxA - maxAyi * maxAyi), maxAxi);
-            dOpts[0][i] = std::copysign(maxAyi, desAyi) / vi;
-            dOpts[1][i] = maxAxi;
-          } else {
-            dOpts[0][i] = std::copysign(maxAyi, desAyi) / vi;
-            dOpts[1][i] = -std::sqrt(maxA * maxA - maxAyi * maxAyi);
-          }
-        } else {
-          dOpts[0][i] = desAyi / vi;
-          dOpts[1][i] = maxAxi;
-        }
-      }
-    }
+    dVr = deriv_ptrs[4][i];
+    // dOpts[0][i] = (dVr >= 0) ? sign * r_d_lim: -sign * r_d_lim;
+    dOpts[0][i] = 0.0;
   }
 
   return true;
 }
 
-FLOAT_TYPE BicycleCAvoid::fialaTireModel(const FLOAT_TYPE a,
+FLOAT_TYPE BicycleWall::fialaTireModel(const FLOAT_TYPE a,
                                          const FLOAT_TYPE Ca,
                                          const FLOAT_TYPE mu,
                                          const FLOAT_TYPE Fx,
@@ -278,23 +246,19 @@ FLOAT_TYPE BicycleCAvoid::fialaTireModel(const FLOAT_TYPE a,
   }
 }
 
-bool BicycleCAvoid::dynamics_cell_helper(
+bool BicycleWall::dynamics_cell_helper(
     std::vector<beacls::FloatVec>& dxs,
-    const beacls::FloatVec::const_iterator& x_rel,
-    const beacls::FloatVec::const_iterator& y_rel,
-    const beacls::FloatVec::const_iterator& psi_rel,
+    const beacls::FloatVec::const_iterator& y,
+    const beacls::FloatVec::const_iterator& psi,
     const beacls::FloatVec::const_iterator& Ux,
     const beacls::FloatVec::const_iterator& Uy,
-    const beacls::FloatVec::const_iterator& V,
     const beacls::FloatVec::const_iterator& r,
     const std::vector<beacls::FloatVec >& us,
     const std::vector<beacls::FloatVec >& ds,
-    const size_t size_x_rel,
-    const size_t size_y_rel,
-    const size_t size_psi_rel,
+    const size_t size_y,
+    const size_t size_psi,
     const size_t size_Ux,
     const size_t size_Uy,
-    const size_t size_V,
     const size_t size_r,
     const size_t dim) const {
 
@@ -302,37 +266,24 @@ bool BicycleCAvoid::dynamics_cell_helper(
   bool result = true;
 
   switch (dims[dim]) {
-    case 0: { // x_rel_dot = V * cos(psi_rel) - Ux + y_rel * r
-      dx_i.resize(size_x_rel);
+    case 0: { // y_dot = Ux * sin(psi) + Uy * cos(psi)
+      dx_i.resize(size_y);
 
-      for (size_t i = 0; i < size_x_rel; ++i) {
-        dx_i[i] = V[i] * std::cos(psi_rel[i]) - Ux[i] + y_rel[i] * r[i];
+      for (size_t i = 0; i < size_y; ++i) {
+        dx_i[i] = Ux[i] * std::sin(psi[i]) + Uy[i] * std::cos(psi[i]);
       }
     } break;
 
-    case 1: { // y_rel_dot = V * sin(psi_rel) - Uy - x_rel * r
-      dx_i.resize(size_y_rel);
+    case 1: { // psi_dot = r
+      dx_i.resize(size_psi);
 
-      for (size_t i = 0; i < size_y_rel; ++i) {
-        dx_i[i] = V[i] * std::sin(psi_rel[i]) - Uy[i] - x_rel[i] * r[i];
+      for (size_t i = 0; i < size_psi; ++i) {
+        dx_i[i] = r[i];
       }
+
     } break;
 
-    case 2: { // psi_rel_dot = w - r
-      dx_i.resize(size_psi_rel);
-      const beacls::FloatVec& w = ds[0];
-      FLOAT_TYPE wi;
-
-      for (size_t i = 0; i < size_psi_rel; ++i) {
-        if (w.size() == size_psi_rel)
-          wi = w[i];
-        else
-          wi = w[0];
-        dx_i[i] = wi - r[i];
-      }
-    } break;
-
-    case 3: {   // Ux_dot = (Fxf * cos(delta) - Fyf * sin(delta) + Fxr + Fx_drag) / m + r * Uy
+    case 2: {   // Ux_dot = (Fxf * cos(delta) - Fyf * sin(delta) + Fxr + Fx_drag) / m + r * Uy
       dx_i.resize(size_Ux);
       // get delta and Fx control inputs
       const beacls::FloatVec&  d = us[0];
@@ -365,7 +316,7 @@ bool BicycleCAvoid::dynamics_cell_helper(
       }
     } break;
 
-    case 4: { // Uy_dot = (Fyf * cos(delta) + Fyr + Fxf * sin(delta)) / m - r * Ux
+    case 3: { // Uy_dot = (Fyf * cos(delta) + Fyr + Fxf * sin(delta)) / m - r * Ux
       dx_i.resize(size_Uy);
       const beacls::FloatVec&  d = us[0];
       const beacls::FloatVec& Fx = us[1];
@@ -392,21 +343,7 @@ bool BicycleCAvoid::dynamics_cell_helper(
       }
     } break;
 
-    case 5: { // V_dot = a
-      dx_i.resize(size_V);
-      const beacls::FloatVec& a = ds[1];
-      FLOAT_TYPE ai;
-
-      for (size_t i = 0; i < size_V; ++i) {
-        if (a.size() == size_V)
-          ai = a[i];
-        else
-          ai = a[0];
-        dx_i[i] = ai;
-      }
-    } break;
-
-    case 6: { // r_dot = (a * Fyf * cos(delta) + a * Fxf * sin(delta) - b * Fyr) / Izz
+    case 4: { // r_dot = (a * Fyf * cos(delta) + a * Fxf * sin(delta) - b * Fyr) / Izz
       dx_i.resize(size_r);
       const beacls::FloatVec&  d = us[0];
       const beacls::FloatVec& Fx = us[1];
@@ -434,14 +371,14 @@ bool BicycleCAvoid::dynamics_cell_helper(
     } break;
 
     default:
-      std::cerr << "Only dimension 1-7 are defined for dynamics of BicycleCAvoid!" << std::endl;
+      std::cerr << "Only dimension 1-5 are defined for dynamics of BicycleWall!" << std::endl;
       result = false;
       break;
   }
   return result;
 }
 
-bool BicycleCAvoid::dynamics(
+bool BicycleWall::dynamics(
     std::vector<beacls::FloatVec>& dx,
     const FLOAT_TYPE,
     const std::vector<beacls::FloatVec::const_iterator>& x_ites,
@@ -453,11 +390,11 @@ bool BicycleCAvoid::dynamics(
   bool result = true;
   // Compute dynamics for all components.
   if (dst_target_dim == std::numeric_limits<size_t>::max()) {
-    for (size_t dim = 0; dim < 7; ++dim) {
+    for (size_t dim = 0; dim < 5; ++dim) {
       // printf("Dimension %zu \n", dim);
       result &= dynamics_cell_helper(
-        dx, x_ites[0], x_ites[1], x_ites[2], x_ites[3], x_ites[4], x_ites[5], x_ites[6], us, ds,
-        x_sizes[0], x_sizes[1], x_sizes[2], x_sizes[3], x_sizes[4], x_sizes[5], x_sizes[6], dim);
+        dx, x_ites[0], x_ites[1], x_ites[2], x_ites[3], x_ites[4], us, ds,
+        x_sizes[0], x_sizes[1], x_sizes[2], x_sizes[3], x_sizes[4], dim);
     }
   }
   // Compute dynamics for a single, specified component.
@@ -466,8 +403,8 @@ bool BicycleCAvoid::dynamics(
     if (dst_target_dim < dims.size()) {
       // printf("Target dimension %zu \n", dst_target_dim);
       result &= dynamics_cell_helper(
-        dx, x_ites[0], x_ites[1], x_ites[2], x_ites[3], x_ites[4], x_ites[5], x_ites[6], us, ds,
-        x_sizes[0], x_sizes[1], x_sizes[2], x_sizes[3], x_sizes[4], x_sizes[5], x_sizes[6], dst_target_dim);
+        dx, x_ites[0], x_ites[1], x_ites[2], x_ites[3], x_ites[4], us, ds,
+        x_sizes[0], x_sizes[1], x_sizes[2], x_sizes[3], x_sizes[4], dst_target_dim);
     } else {
       std::cerr << "Invalid target dimension for dynamics: " << dst_target_dim << std::endl;
       result = false;
@@ -477,7 +414,7 @@ bool BicycleCAvoid::dynamics(
 }
 
 #if defined(USER_DEFINED_GPU_DYNSYS_FUNC)
-bool BicycleCAvoid::optCtrl_cuda(
+bool BicycleWall::optCtrl_cuda(
   std::vector<beacls::UVec>& u_uvecs,
   const FLOAT_TYPE,
   const std::vector<beacls::UVec>& x_uvecs,
@@ -485,13 +422,13 @@ bool BicycleCAvoid::optCtrl_cuda(
   const helperOC::DynSys_UMode_Type uMode
 ) const {
   const helperOC::DynSys_UMode_Type modified_uMode = (uMode == helperOC::DynSys_UMode_Default) ? helperOC::DynSys_UMode_Max : uMode;
-  if (x_uvecs.size() < 7 || x_uvecs[0].empty() || x_uvecs[1].empty() || x_uvecs[2].empty() ||
-      x_uvecs[3].empty() || x_uvecs[4].empty() || x_uvecs[5].empty() || x_uvecs[6].empty() ||
-      deriv_uvecs.size() < 7 || deriv_uvecs[0].empty() || deriv_uvecs[1].empty() || deriv_uvecs[2].empty() ||
-      deriv_uvecs[3].empty() || deriv_uvecs[4].empty() || deriv_uvecs[5].empty() || deriv_uvecs[6].empty()) return false;
-  return BicycleCAvoid_CUDA::optCtrl_execute_cuda(u_uvecs, x_uvecs, deriv_uvecs, modified_uMode);
+  if (x_uvecs.size() < 5 || x_uvecs[0].empty() || x_uvecs[1].empty() || x_uvecs[2].empty() ||
+      x_uvecs[3].empty() || x_uvecs[4].empty() ||
+      deriv_uvecs.size() < 5 || deriv_uvecs[0].empty() || deriv_uvecs[1].empty() || deriv_uvecs[2].empty() ||
+      deriv_uvecs[3].empty() || deriv_uvecs[4].empty()) return false;
+  return BicycleWall_CUDA::optCtrl_execute_cuda(u_uvecs, x_uvecs, deriv_uvecs, modified_uMode);
 }
-bool BicycleCAvoid::optDstb_cuda(
+bool BicycleWall::optDstb_cuda(
   std::vector<beacls::UVec>& d_uvecs,
   const FLOAT_TYPE,
   const std::vector<beacls::UVec>& x_uvecs,
@@ -499,13 +436,13 @@ bool BicycleCAvoid::optDstb_cuda(
   const helperOC::DynSys_DMode_Type dMode
 ) const {
   const helperOC::DynSys_DMode_Type modified_dMode = (dMode == helperOC::DynSys_DMode_Default) ? helperOC::DynSys_DMode_Min : dMode;
-  if (x_uvecs.size() < 7 || x_uvecs[0].empty() || x_uvecs[1].empty() || x_uvecs[2].empty() ||
-      x_uvecs[3].empty() || x_uvecs[4].empty() || x_uvecs[5].empty() || x_uvecs[6].empty() ||
-      deriv_uvecs.size() < 7 || deriv_uvecs[0].empty() || deriv_uvecs[1].empty() || deriv_uvecs[2].empty() ||
-      deriv_uvecs[3].empty() || deriv_uvecs[4].empty() || deriv_uvecs[5].empty() || deriv_uvecs[6].empty()) return false;
-  return BicycleCAvoid_CUDA::optDstb_execute_cuda(d_uvecs, x_uvecs, deriv_uvecs, modified_dMode);
+  if (x_uvecs.size() < 5 || x_uvecs[0].empty() || x_uvecs[1].empty() || x_uvecs[2].empty() ||
+      x_uvecs[3].empty() || x_uvecs[4].empty() ||
+      deriv_uvecs.size() < 5 || deriv_uvecs[0].empty() || deriv_uvecs[1].empty() || deriv_uvecs[2].empty() ||
+      deriv_uvecs[3].empty() || deriv_uvecs[4].empty()) return false;
+  return BicycleWall_CUDA::optDstb_execute_cuda(d_uvecs, x_uvecs, deriv_uvecs, modified_dMode);
 }
-bool BicycleCAvoid::dynamics_cuda(
+bool BicycleWall::dynamics_cuda(
   std::vector<beacls::UVec>& dx_uvecs,
   const FLOAT_TYPE,
   const std::vector<beacls::UVec>& x_uvecs,
@@ -515,12 +452,12 @@ bool BicycleCAvoid::dynamics_cuda(
 ) const {
   bool result = true;
   if (dst_target_dim == std::numeric_limits<size_t>::max()) {
-    result &= BicycleCAvoid_CUDA::dynamics_cell_helper_execute_cuda_dimAll(dx_uvecs, x_uvecs, u_uvecs, d_uvecs);
+    result &= BicycleWall_CUDA::dynamics_cell_helper_execute_cuda_dimAll(dx_uvecs, x_uvecs, u_uvecs, d_uvecs);
   }
   else
   {
     if (dst_target_dim < x_uvecs.size()) {
-      return BicycleCAvoid_CUDA::dynamics_cell_helper_execute_cuda(dx_uvecs[dst_target_dim], x_uvecs, u_uvecs, d_uvecs, dst_target_dim);
+      return BicycleWall_CUDA::dynamics_cell_helper_execute_cuda(dx_uvecs[dst_target_dim], x_uvecs, u_uvecs, d_uvecs, dst_target_dim);
     } else {
       std::cerr << "Invalid target dimension for dynamics: " << dst_target_dim << std::endl;
       result = false;
