@@ -104,7 +104,7 @@ int main(int argc, char *argv[])
                                                     (FLOAT_TYPE)1,
                                                     (FLOAT_TYPE)(-2),
                                                     (FLOAT_TYPE)(-1) };
-    const beacls::FloatVec gMax = beacls::FloatVec{ (FLOAT_TYPE)5,
+    const beacls::FloatVec gMax = beacls::FloatVec{ (FLOAT_TYPE)7,
                                                     (FLOAT_TYPE)M_PI/2,
                                                     (FLOAT_TYPE)12,
                                                     (FLOAT_TYPE)2,
